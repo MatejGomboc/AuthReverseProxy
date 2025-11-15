@@ -1,0 +1,28 @@
+{
+    "recommendations": [
+        "davidanson.vscode-markdownlint",
+        "donjayamanne.githistory",
+        "editorconfig.editorconfig",
+        "felipecaputo.git-project-manager",
+        "github.vscode-github-actions",
+        "Gruntfuggly.todo-tree",
+        "ms-vscode.notepadplusplus-keybindings",
+        "redhat.vscode-yaml",
+        "usernamehw.errorlens",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "Anthropic.claude-code",
+        "ms-azuretools.vscode-containers",
+        "ms-azuretools.vscode-docker",
+        "docker.docker",
+        "jesschadwick.nuget-reverse-package-search",
+        "humao.rest-client",
+        "foxundermoon.shell-format",
+        "timonwong.shellcheck",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-sqlite",
+        "task.vscode-task",
+        "DotJoshJohnson.xml"
+    ]
+}
