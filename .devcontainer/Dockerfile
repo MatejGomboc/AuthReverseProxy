@@ -1,7 +1,5 @@
 FROM debian:13-slim AS downloader
 
-ARG TASK_VERSION=v3.45.5
-
 USER root:root
 
 WORKDIR /root
@@ -19,9 +17,9 @@ FROM debian:13-slim
 LABEL org.opencontainers.image.title="AuthReverseProxy Development Environment" \
     org.opencontainers.image.description="AuthReverseProxy Development Environment" \
     org.opencontainers.image.authors="Matej Gomboc" \
-    org.opencontainers.image.source="https://github.com/MatejGomboc" \
+    org.opencontainers.image.source="https://github.com/MatejGomboc/AuthReverseProxy" \
     org.opencontainers.image.vendor="https://github.com/MatejGomboc" \
-    org.opencontainers.image.licenses="Private"
+    org.opencontainers.image.licenses="AGPL-3.0-only"
 
 USER root:root
 
