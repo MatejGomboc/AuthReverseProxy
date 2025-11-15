@@ -1,16 +1,12 @@
 FROM debian:13-slim AS downloader
 
-USER root:root
-
-WORKDIR /root
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+WORKDIR /tmp/downloads
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates wget && \
-    wget -q "https://dl.cloudsmith.io/public/task/task/setup.deb.sh" && \
-    wget -q "https://claude.ai/install.sh" && \
-    wget -q "https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb"
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    curl -fsSL -o setup.deb.sh "https://dl.cloudsmith.io/public/task/task/setup.deb.sh" && \
+    curl -fsSL -o install.sh "https://claude.ai/install.sh" && \
+    curl -fsSL -o packages-microsoft-prod.deb "https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb"
 
 FROM debian:13-slim
 
@@ -21,37 +17,36 @@ LABEL org.opencontainers.image.title="AuthReverseProxy Development Environment" 
     org.opencontainers.image.vendor="https://github.com/MatejGomboc" \
     org.opencontainers.image.licenses="AGPL-3.0-only"
 
-USER root:root
-
 WORKDIR /root
 
 ENV PATH="/root/.local/bin:${PATH}"
 
-COPY --from=downloader /root/setup.deb.sh /root/
-COPY --from=downloader /root/install.sh /root/
-COPY --from=downloader /root/packages-microsoft-prod.deb /root/
+COPY --from=downloader /tmp/downloads/* /tmp/
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends ca-certificates git wget curl && \
-    \
-    bash /root/setup.deb.sh && \
-    rm /root/setup.deb.sh && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        curl && \
+    # Install Task
+    bash /tmp/setup.deb.sh && \
     apt-get update && \
     apt-get install -y --no-install-recommends task && \
-    \
-    bash /root/install.sh && \
-    rm /root/install.sh && \
-    \
-    dpkg -i /root/packages-microsoft-prod.deb && \
-    rm /root/packages-microsoft-prod.deb && \
+    # Install Claude Code
+    bash /tmp/install.sh && \
+    # Install .NET Core 10 SDK
+    dpkg -i /tmp/packages-microsoft-prod.deb && \
     apt-get update && \
     apt-get install -y --no-install-recommends dotnet-sdk-10.0 && \
-    \
+    # Cleanup
+    rm -rf /tmp/* && \
     apt-get autoremove -y && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
+    # Verify installations and update Claude Code
     task --version && \
     dotnet --info && \
     claude update
