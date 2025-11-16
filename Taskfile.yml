@@ -1,0 +1,13 @@
+version: "3"
+
+tasks:
+    build:
+        desc: Build the application
+        cmds:
+            - dotnet build
+
+    clean:
+        desc: Clean build artifacts
+        cmds:
+            - dotnet clean
+            - rm -rf bin obj
