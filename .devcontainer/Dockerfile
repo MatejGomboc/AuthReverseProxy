@@ -21,7 +21,7 @@ WORKDIR /root
 
 ENV PATH="/root/.local/bin:${PATH}"
 
-COPY --from=downloader /tmp/downloads/* /tmp/
+COPY --from=downloader /tmp/downloads/* /tmp/downloads/
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -29,17 +29,17 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends ca-certificates git curl && \
     # Install Task
-    bash /tmp/setup.deb.sh && \
+    bash /tmp/downloads/setup.deb.sh && \
     apt-get update && \
     apt-get install -y --no-install-recommends task && \
     # Install Claude Code
-    bash /tmp/install.sh && \
+    bash /tmp/downloads/install.sh && \
     # Install .NET Core 10 SDK
-    dpkg -i /tmp/packages-microsoft-prod.deb && \
+    dpkg -i /tmp/downloads/packages-microsoft-prod.deb && \
     apt-get update && \
     apt-get install -y --no-install-recommends dotnet-sdk-10.0 && \
     # Cleanup
-    rm -rf /tmp/* && \
+    rm -rf /tmp/downloads/* && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
