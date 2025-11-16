@@ -33,7 +33,8 @@
                 "mtxr.sqltools",
                 "mtxr.sqltools-driver-sqlite",
                 "task.vscode-task",
-                "DotJoshJohnson.xml"
+                "DotJoshJohnson.xml",
+                "tintoy.msbuild-project-tools"
             ]
         }
     }
