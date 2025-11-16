@@ -15,5 +15,7 @@
     "[sln]": {
         "editor.insertSpaces": false,
         "editor.tabSize": 4
-    }
+    },
+    "dotnetAcquisitionExtension.enableTelemetry": false,
+    "remote.autoForwardPortsFallback": 0
 }
