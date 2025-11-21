@@ -50,12 +50,18 @@ builder.Services.AddHsts((HstsOptions options) =>
 
 builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
 {
+    // HTTPS listener
     options.Listen(config.Hostname, config.HttpsPort, listenOptions =>
     {
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
         listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
     });
 
-    options.Listen(config.Hostname, config.HttpPort);
+    // HTTP listener (for redirects only)
+    options.Listen(config.Hostname, config.HttpPort, listenOptions =>
+    {
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+    });
 });
 
 WebApplication app = builder.Build();
