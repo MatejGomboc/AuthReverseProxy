@@ -8,8 +8,11 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 // Clear default configuration sources
 builder.Configuration.Sources.Clear();
 
-// Add custom config.json
-builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: true);
+// Add custom config.json (required)
+builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: false);
+
+// Add optional config.local.json for local development overrides (not committed)
+builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
 // Set environment based on compile-time constant
 #if DEVELOPMENT
@@ -20,8 +23,8 @@ builder.Environment.EnvironmentName = Environments.Production;
 
 // Configure Kestrel with HTTPS as primary, HTTP for redirect
 string hostname = builder.Configuration["Hostname"] ?? "localhost";
-int httpsPort = builder.Configuration.GetValue<int>("HttpsPort", 7000);
-int httpPort = builder.Configuration.GetValue<int>("HttpPort", 7001);
+int httpsPort = builder.Configuration.GetValue<int>("HttpsPort", 443);
+int httpPort = builder.Configuration.GetValue<int>("HttpPort", 80);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
