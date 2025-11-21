@@ -1,9 +1,10 @@
 using System;
-using System.Net;
 using AuthReverseProxy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpsPolicy;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,24 +35,34 @@ if (config.HttpPort == config.HttpsPort)
     return 1;
 }
 
-builder.Services.Configure<HttpsRedirectionOptions>(options =>
+builder.Services.Configure<HttpsRedirectionOptions>((HttpsRedirectionOptions options) =>
 {
     options.HttpsPort = config.HttpsPort;
+    options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
 });
 
-builder.WebHost.ConfigureKestrel(options =>
+builder.Services.AddHsts((HstsOptions options) =>
 {
-    options.Listen(IPAddress.Parse(config.Hostname), config.HttpsPort, listenOptions =>
+    options.MaxAge = TimeSpan.MaxValue;
+    options.IncludeSubDomains = false; // Each domain should opt-in individually.
+    options.Preload = false; // Each domain should opt-in individually.
+});
+
+builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
+{
+    options.Listen(config.Hostname, config.HttpsPort, listenOptions =>
     {
         listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
     });
 
-    options.Listen(IPAddress.Parse(config.Hostname), config.HttpPort);
+    options.Listen(config.Hostname, config.HttpPort);
 });
 
 WebApplication app = builder.Build();
 
 app.UseHttpsRedirection();
+
+app.UseHsts();
 
 app.MapGet("/", () => "Hello World!");
 
