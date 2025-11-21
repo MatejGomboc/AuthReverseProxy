@@ -4,6 +4,5 @@
         <Nullable>enable</Nullable>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-        <DefineConstants>$(DefineConstants);PRODUCTION</DefineConstants>
     </PropertyGroup>
 </Project>
