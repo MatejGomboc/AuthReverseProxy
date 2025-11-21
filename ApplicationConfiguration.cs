@@ -27,15 +27,15 @@ public sealed class ApplicationConfiguration
         }
 
         // Validate HTTPS port
-        if (httpsPort < 1 || httpsPort > 65535)
+        if (httpsPort < 1 || httpsPort > ushort.MaxValue)
         {
-            throw new InvalidOperationException($"Invalid HttpsPort: {httpsPort}. Must be between 1 and 65535.");
+            throw new InvalidOperationException($"Invalid HttpsPort: {httpsPort}. Must be between 1 and {ushort.MaxValue}.");
         }
 
         // Validate HTTP port
-        if (httpPort < 1 || httpPort > 65535)
+        if (httpPort < 1 || httpPort > ushort.MaxValue)
         {
-            throw new InvalidOperationException($"Invalid HttpPort: {httpPort}. Must be between 1 and 65535.");
+            throw new InvalidOperationException($"Invalid HttpPort: {httpPort}. Must be between 1 and {ushort.MaxValue}.");
         }
 
         // Validate ports are different
