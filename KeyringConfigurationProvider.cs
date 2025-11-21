@@ -15,6 +15,11 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     private readonly string _account;
     private readonly string _configKey;
 
+    // Cache function pointers (loaded once)
+    private static IntPtr _gStrHashPtr;
+    private static IntPtr _gStrEqualPtr;
+    private static readonly object _functionPointerLock = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="KeyringConfigurationProvider"/> class.
     /// </summary>
@@ -53,6 +58,62 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     }
 
     /// <summary>
+    /// Gets the function pointer for g_str_hash.
+    /// </summary>
+    private static IntPtr GetGStrHashPointer()
+    {
+        if (_gStrHashPtr == IntPtr.Zero)
+        {
+            lock (_functionPointerLock)
+            {
+                if (_gStrHashPtr == IntPtr.Zero)
+                {
+                    IntPtr libHandle = dlopen(LibGLib, RTLD_LAZY);
+                    if (libHandle == IntPtr.Zero)
+                    {
+                        throw new InvalidOperationException("Failed to load libglib-2.0.so.0");
+                    }
+
+                    _gStrHashPtr = dlsym(libHandle, "g_str_hash");
+                    if (_gStrHashPtr == IntPtr.Zero)
+                    {
+                        throw new InvalidOperationException("Failed to find g_str_hash symbol");
+                    }
+                }
+            }
+        }
+        return _gStrHashPtr;
+    }
+
+    /// <summary>
+    /// Gets the function pointer for g_str_equal.
+    /// </summary>
+    private static IntPtr GetGStrEqualPointer()
+    {
+        if (_gStrEqualPtr == IntPtr.Zero)
+        {
+            lock (_functionPointerLock)
+            {
+                if (_gStrEqualPtr == IntPtr.Zero)
+                {
+                    IntPtr libHandle = dlopen(LibGLib, RTLD_LAZY);
+                    if (libHandle == IntPtr.Zero)
+                    {
+                        throw new InvalidOperationException("Failed to load libglib-2.0.so.0");
+                    }
+
+                    _gStrEqualPtr = dlsym(libHandle, "g_str_equal");
+                    if (_gStrEqualPtr == IntPtr.Zero)
+                    {
+                        throw new InvalidOperationException("Failed to find g_str_equal symbol");
+                    }
+                }
+            }
+        }
+        return _gStrEqualPtr;
+    }
+
+    /// <summary>
     /// Fetches a secret from GNOME Keyring using libsecret.
     /// </summary>
     /// <param name="service">The service name.</param>
@@ -62,8 +123,8 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     {
         // Create GHashTable for attributes - we'll manage memory manually
         IntPtr attributes = g_hash_table_new_full(
-            g_str_hash(),
-            g_str_equal(),
+            GetGStrHashPointer(),
+            GetGStrEqualPointer(),
             IntPtr.Zero,  // key_destroy_func - NULL, we'll free manually
             IntPtr.Zero); // value_destroy_func - NULL, we'll free manually
 
@@ -193,6 +254,20 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
     #region P/Invoke Declarations
 
+    private const int RTLD_LAZY = 0x00001;
+
+    /// <summary>
+    /// Open a shared library.
+    /// </summary>
+    [DllImport("libdl.so.2", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr dlopen([MarshalAs(UnmanagedType.LPUTF8Str)] string filename, int flags);
+
+    /// <summary>
+    /// Get the address of a symbol in a shared library.
+    /// </summary>
+    [DllImport("libdl.so.2", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr dlsym(IntPtr handle, [MarshalAs(UnmanagedType.LPUTF8Str)] string symbol);
+
     /// <summary>
     /// Lookup a password using attributes hash table (non-variadic, more reliable).
     /// </summary>
@@ -236,18 +311,6 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// </summary>
     [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
     private static extern void g_hash_table_destroy(IntPtr hash_table);
-
-    /// <summary>
-    /// GLib string hash function pointer.
-    /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_str_hash")]
-    private static extern IntPtr g_str_hash();
-
-    /// <summary>
-    /// GLib string equality function pointer.
-    /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_str_equal")]
-    private static extern IntPtr g_str_equal();
 
     /// <summary>
     /// Duplicate a string using GLib allocator (handles UTF-8 correctly).
