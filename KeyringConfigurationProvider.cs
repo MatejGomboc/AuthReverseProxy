@@ -16,9 +16,36 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     private readonly string _account;
     private readonly string _configKey;
 
-    // Cache delegate instances to prevent garbage collection
-    private static readonly GStrHashDelegate _gStrHashDelegate = g_str_hash;
-    private static readonly GStrEqualDelegate _gStrEqualDelegate = g_str_equal;
+    // Cache native function pointers (NOT managed delegates) as static fields
+    // These are loaded once and reused, avoiding overhead on every call
+    private static readonly IntPtr _gStrHashFuncPtr;
+    private static readonly IntPtr _gStrEqualFuncPtr;
+    private static readonly IntPtr _gFreeFuncPtr;
+
+    /// <summary>
+    /// Static constructor to initialize cached function pointers from native libraries.
+    /// </summary>
+    static KeyringConfigurationProvider()
+    {
+        try
+        {
+            // Load GLib library and get direct function pointers
+            IntPtr libGLib = NativeLibrary.Load(LibGLib);
+            
+            _gStrHashFuncPtr = NativeLibrary.GetExport(libGLib, "g_str_hash");
+            _gStrEqualFuncPtr = NativeLibrary.GetExport(libGLib, "g_str_equal");
+            _gFreeFuncPtr = NativeLibrary.GetExport(libGLib, "g_free");
+
+            if (_gStrHashFuncPtr == IntPtr.Zero || _gStrEqualFuncPtr == IntPtr.Zero || _gFreeFuncPtr == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("Failed to load required GLib function pointers.");
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to initialize KeyringConfigurationProvider: {ex.Message}", ex);
+        }
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="KeyringConfigurationProvider"/> class.
@@ -87,56 +114,49 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     /// <returns>The retrieved secret, or null if not found.</returns>
     private static string? FetchSecretFromKeyring(string service, string account)
     {
-        // Get function pointers for GHashTable creation
-        // We keep delegate instances alive in static fields to prevent GC
-        IntPtr gStrHashFunc = Marshal.GetFunctionPointerForDelegate(_gStrHashDelegate);
-        IntPtr gStrEqualFunc = Marshal.GetFunctionPointerForDelegate(_gStrEqualDelegate);
-
-        if (gStrHashFunc == IntPtr.Zero || gStrEqualFunc == IntPtr.Zero)
-        {
-            throw new InvalidOperationException("Failed to get GLib string function pointers.");
-        }
-
-        // Create GHashTable for attributes
+        // Create GHashTable for attributes with g_free as destroy functions
+        // This way the hash table will automatically free keys and values when destroyed
         IntPtr attributes = g_hash_table_new_full(
-            gStrHashFunc,
-            gStrEqualFunc,
-            IntPtr.Zero,  // key_destroy_func - NULL (we manage memory)
-            IntPtr.Zero); // value_destroy_func - NULL (we manage memory)
+            _gStrHashFuncPtr,   // Direct pointer to g_str_hash
+            _gStrEqualFuncPtr,  // Direct pointer to g_str_equal
+            _gFreeFuncPtr,      // g_free for keys - hash table owns the memory
+            _gFreeFuncPtr);     // g_free for values - hash table owns the memory
 
         if (attributes == IntPtr.Zero)
         {
             throw new InvalidOperationException("Failed to create GHashTable for attributes.");
         }
 
-        // Track allocated strings for cleanup
-        IntPtr serviceKey = IntPtr.Zero;
-        IntPtr serviceValue = IntPtr.Zero;
-        IntPtr accountKey = IntPtr.Zero;
-        IntPtr accountValue = IntPtr.Zero;
-
         try
         {
             // Allocate and insert service attribute
-            serviceKey = g_strdup("service");
+            IntPtr serviceKey = g_strdup("service");
             if (serviceKey == IntPtr.Zero)
                 throw new OutOfMemoryException("Failed to allocate memory for 'service' key.");
 
-            serviceValue = g_strdup(service);
+            IntPtr serviceValue = g_strdup(service);
             if (serviceValue == IntPtr.Zero)
+            {
+                g_free(serviceKey); // Clean up the key we just allocated
                 throw new OutOfMemoryException($"Failed to allocate memory for service value '{service}'.");
+            }
 
+            // Hash table takes ownership of key and value
             g_hash_table_insert(attributes, serviceKey, serviceValue);
 
             // Allocate and insert account attribute
-            accountKey = g_strdup("account");
+            IntPtr accountKey = g_strdup("account");
             if (accountKey == IntPtr.Zero)
                 throw new OutOfMemoryException("Failed to allocate memory for 'account' key.");
 
-            accountValue = g_strdup(account);
+            IntPtr accountValue = g_strdup(account);
             if (accountValue == IntPtr.Zero)
+            {
+                g_free(accountKey); // Clean up the key we just allocated
                 throw new OutOfMemoryException($"Failed to allocate memory for account value '{account}'.");
+            }
 
+            // Hash table takes ownership of key and value
             g_hash_table_insert(attributes, accountKey, accountValue);
 
             // Lookup password using the attribute hash table
@@ -163,7 +183,14 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
             try
             {
                 // Marshal UTF-8 string from native memory
-                return Marshal.PtrToStringUTF8(passwordPtr);
+                string? password = Marshal.PtrToStringUTF8(passwordPtr);
+                
+                if (password is null)
+                {
+                    throw new InvalidOperationException("Failed to marshal password from native memory - PtrToStringUTF8 returned null.");
+                }
+                
+                return password;
             }
             finally
             {
@@ -173,37 +200,18 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
         }
         finally
         {
-            // Clean up all allocated resources in reverse order
-            // Use individual try-catch to ensure all cleanups are attempted
-            
+            // Destroy hash table - this will automatically free all keys and values
+            // because we passed g_free as the destroy functions
             if (attributes != IntPtr.Zero)
             {
-                try { g_hash_table_destroy(attributes); }
-                catch { /* Suppress cleanup exceptions */ }
-            }
-
-            if (accountValue != IntPtr.Zero)
-            {
-                try { g_free(accountValue); }
-                catch { /* Suppress cleanup exceptions */ }
-            }
-
-            if (accountKey != IntPtr.Zero)
-            {
-                try { g_free(accountKey); }
-                catch { /* Suppress cleanup exceptions */ }
-            }
-
-            if (serviceValue != IntPtr.Zero)
-            {
-                try { g_free(serviceValue); }
-                catch { /* Suppress cleanup exceptions */ }
-            }
-
-            if (serviceKey != IntPtr.Zero)
-            {
-                try { g_free(serviceKey); }
-                catch { /* Suppress cleanup exceptions */ }
+                try 
+                { 
+                    g_hash_table_destroy(attributes); 
+                }
+                catch 
+                { 
+                    // Suppress cleanup exceptions to avoid masking primary exception
+                }
             }
         }
     }
@@ -232,7 +240,7 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
         }
     }
 
-    #region Structures and Delegates
+    #region Structures
 
     /// <summary>
     /// GError structure definition with proper layout.
@@ -244,19 +252,6 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
         public int code;         // gint (gint32)
         public IntPtr message;   // gchar* - marshaler handles padding correctly
     }
-
-    /// <summary>
-    /// Delegate for GLib string hash function.
-    /// </summary>
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate uint GStrHashDelegate(IntPtr str);
-
-    /// <summary>
-    /// Delegate for GLib string equality function.
-    /// </summary>
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.I4)]
-    private delegate bool GStrEqualDelegate(IntPtr a, IntPtr b);
 
     #endregion
 
@@ -317,19 +312,6 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     /// </summary>
     [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
     private static extern void g_free(IntPtr mem);
-
-    /// <summary>
-    /// GLib string hash function.
-    /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_str_hash")]
-    private static extern uint g_str_hash(IntPtr str);
-
-    /// <summary>
-    /// GLib string equality function.
-    /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_str_equal")]
-    [return: MarshalAs(UnmanagedType.I4)]
-    private static extern bool g_str_equal(IntPtr a, IntPtr b);
 
     #endregion
 }
