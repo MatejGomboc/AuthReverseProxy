@@ -15,7 +15,7 @@ public class KeyringConfigurationSource : IConfigurationSource
     /// <summary>
     /// Gets or sets the account name for keyring lookup.
     /// </summary>
-    public string Account { get; set; } = "AuthReverseProxyHttpsCertificate";
+    public string Account { get; set; } = "HttpsCertificate";
 
     /// <summary>
     /// Gets or sets the configuration key to populate with the retrieved secret.
