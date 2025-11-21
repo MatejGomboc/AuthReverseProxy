@@ -44,7 +44,7 @@ builder.WebHost.ConfigureKestrel(options =>
     // HTTPS endpoint
     options.Listen(IPAddress.Parse(config.Hostname), config.HttpsPort, listenOptions =>
     {
-        if (config.UseDevelopmentCertificate)
+        if (string.IsNullOrWhiteSpace(config.CertificatePath))
         {
             listenOptions.UseHttps();
         }
