@@ -3,7 +3,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = []
+});
 
 // Clear default configuration sources
 builder.Configuration.Sources.Clear();
