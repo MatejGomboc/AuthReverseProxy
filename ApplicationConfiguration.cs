@@ -9,7 +9,6 @@ public sealed class ApplicationConfiguration
     public int HttpPort { get; init; }
     public string CertificatePath { get; init; } = null!;
     public string CertificatePassword { get; init; } = null!;
-    public bool UseDevelopmentCertificate => string.IsNullOrWhiteSpace(CertificatePath);
 
     private ApplicationConfiguration() { }
 
@@ -46,8 +45,7 @@ public sealed class ApplicationConfiguration
         }
 
         // Validate certificate file exists if path is specified
-        bool useDevelopmentCert = string.IsNullOrWhiteSpace(certificatePath);
-        if (!useDevelopmentCert && !File.Exists(certificatePath))
+        if (!string.IsNullOrWhiteSpace(certificatePath) && !File.Exists(certificatePath))
         {
             throw new InvalidOperationException($"Certificate file not found: {certificatePath}");
         }
