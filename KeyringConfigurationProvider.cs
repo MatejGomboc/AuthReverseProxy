@@ -15,10 +15,12 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     private readonly string _account;
     private readonly string _configKey;
 
-    // Cache function pointers (loaded once)
+    // Cache function pointers (loaded once, kept for application lifetime)
+    // Note: We intentionally keep the GLib library loaded because these function
+    // pointers remain valid only while the library is loaded. For a long-running
+    // server process, this is the correct approach.
     private static IntPtr _gStrHashPtr;
     private static IntPtr _gStrEqualPtr;
-    private static IntPtr _glibHandle;
     private static readonly object _functionPointerLock = new();
 
     /// <summary>
@@ -27,8 +29,18 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <param name="service">The service name for keyring lookup.</param>
     /// <param name="account">The account name for keyring lookup.</param>
     /// <param name="configKey">The configuration key to populate with the retrieved secret.</param>
+    /// <exception cref="ArgumentException">Thrown when service or account is null or whitespace.</exception>
     public KeyringConfigurationProvider(string service, string account, string configKey = "HttpsCertificatePassword")
     {
+        if (string.IsNullOrWhiteSpace(service))
+            throw new ArgumentException("Service name cannot be null or whitespace.", nameof(service));
+        
+        if (string.IsNullOrWhiteSpace(account))
+            throw new ArgumentException("Account name cannot be null or whitespace.", nameof(account));
+        
+        if (string.IsNullOrWhiteSpace(configKey))
+            throw new ArgumentException("Config key cannot be null or whitespace.", nameof(configKey));
+
         _service = service;
         _account = account;
         _configKey = configKey;
@@ -76,7 +88,11 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
             try
             {
-                // Open GLib library once
+                // Open GLib library
+                // Note: We intentionally do not close this library handle. The function pointers
+                // we obtain remain valid only while the library is loaded, and we cache them
+                // for the lifetime of the application. For a long-running server, keeping the
+                // library loaded is the correct approach.
                 libHandle = dlopen(LibGLib, RTLD_LAZY);
                 if (libHandle == IntPtr.Zero)
                 {
@@ -94,7 +110,14 @@ public class KeyringConfigurationProvider : ConfigurationProvider
                 if (error1 != IntPtr.Zero)
                 {
                     string? errorMsg = Marshal.PtrToStringUTF8(error1);
+                    dlclose(libHandle);
                     throw new InvalidOperationException($"Failed to find g_str_hash symbol: {errorMsg}");
+                }
+
+                if (gStrHashPtr == IntPtr.Zero)
+                {
+                    dlclose(libHandle);
+                    throw new InvalidOperationException("g_str_hash symbol pointer is null");
                 }
 
                 // Clear error again
@@ -106,20 +129,34 @@ public class KeyringConfigurationProvider : ConfigurationProvider
                 if (error2 != IntPtr.Zero)
                 {
                     string? errorMsg = Marshal.PtrToStringUTF8(error2);
+                    dlclose(libHandle);
                     throw new InvalidOperationException($"Failed to find g_str_equal symbol: {errorMsg}");
                 }
 
+                if (gStrEqualPtr == IntPtr.Zero)
+                {
+                    dlclose(libHandle);
+                    throw new InvalidOperationException("g_str_equal symbol pointer is null");
+                }
+
                 // Only set static fields after ALL operations succeed
-                _glibHandle = libHandle;
+                // Note: We intentionally keep libHandle open - see comment at top of method
                 _gStrHashPtr = gStrHashPtr;
                 _gStrEqualPtr = gStrEqualPtr;
             }
             catch
             {
-                // Clean up library handle on failure
+                // On failure, close the library handle if we opened it
                 if (libHandle != IntPtr.Zero)
                 {
-                    dlclose(libHandle);
+                    try
+                    {
+                        dlclose(libHandle);
+                    }
+                    catch
+                    {
+                        // Suppress dlclose exceptions during error handling
+                    }
                 }
                 throw;
             }
@@ -137,12 +174,12 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         // Initialize function pointers if needed
         InitializeGLibFunctionPointers();
 
-        // Create GHashTable for attributes - we'll manage memory manually
+        // Create GHashTable for attributes
         IntPtr attributes = g_hash_table_new_full(
             _gStrHashPtr,
             _gStrEqualPtr,
-            IntPtr.Zero,  // key_destroy_func - NULL, we'll free manually
-            IntPtr.Zero); // value_destroy_func - NULL, we'll free manually
+            IntPtr.Zero,  // key_destroy_func - NULL, we manage memory manually
+            IntPtr.Zero); // value_destroy_func - NULL, we manage memory manually
 
         if (attributes == IntPtr.Zero)
         {
@@ -157,7 +194,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
         try
         {
-            // Add service attribute using g_strdup
+            // Allocate and insert service attribute
             serviceKey = g_strdup("service");
             if (serviceKey == IntPtr.Zero)
                 throw new OutOfMemoryException("Failed to allocate memory for 'service' key");
@@ -168,7 +205,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
             g_hash_table_insert(attributes, serviceKey, serviceValue);
 
-            // Add account attribute using g_strdup
+            // Allocate and insert account attribute
             accountKey = g_strdup("account");
             if (accountKey == IntPtr.Zero)
                 throw new OutOfMemoryException("Failed to allocate memory for 'account' key");
@@ -181,7 +218,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
             IntPtr error = IntPtr.Zero;
 
-            // Use lookupv which takes a GHashTable (more reliable than variadic version)
+            // Lookup password using the attribute hash table
             IntPtr passwordPtr = secret_password_lookupv_sync(
                 IntPtr.Zero,     // schema (NULL = generic)
                 attributes,      // attribute hash table
@@ -196,7 +233,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
                 throw new InvalidOperationException($"libsecret error: {errorMessage ?? "Unknown error"}");
             }
 
-            // No password found
+            // No password found (not an error, just no matching entry)
             if (passwordPtr == IntPtr.Zero)
             {
                 return null;
@@ -205,7 +242,8 @@ public class KeyringConfigurationProvider : ConfigurationProvider
             try
             {
                 // Marshal UTF-8 string from native memory
-                return Marshal.PtrToStringUTF8(passwordPtr);
+                string? result = Marshal.PtrToStringUTF8(passwordPtr);
+                return result;
             }
             finally
             {
@@ -215,22 +253,26 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         }
         finally
         {
-            // Wrap ALL cleanup in try-catch to ensure we attempt all cleanup
-            // even if one operation fails, and to avoid masking original exceptions
+            // Clean up all allocated resources
+            // Wrap each cleanup in try-catch to ensure we attempt all cleanups
+            // even if one fails, and to avoid masking the original exception
+            
             try
             {
-                // Clean up the hash table first (removes references to our strings)
-                g_hash_table_destroy(attributes);
+                // Destroy the hash table first (removes references, doesn't free strings)
+                if (attributes != IntPtr.Zero)
+                    g_hash_table_destroy(attributes);
             }
             catch
             {
                 // Suppress hash table cleanup exceptions
             }
 
+            // Now free the strings we allocated with g_strdup
             try
             {
-                // Now manually free the strings we allocated with g_strdup
-                if (serviceKey != IntPtr.Zero) g_free(serviceKey);
+                if (serviceKey != IntPtr.Zero)
+                    g_free(serviceKey);
             }
             catch
             {
@@ -239,7 +281,8 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
             try
             {
-                if (serviceValue != IntPtr.Zero) g_free(serviceValue);
+                if (serviceValue != IntPtr.Zero)
+                    g_free(serviceValue);
             }
             catch
             {
@@ -248,7 +291,8 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
             try
             {
-                if (accountKey != IntPtr.Zero) g_free(accountKey);
+                if (accountKey != IntPtr.Zero)
+                    g_free(accountKey);
             }
             catch
             {
@@ -257,7 +301,8 @@ public class KeyringConfigurationProvider : ConfigurationProvider
 
             try
             {
-                if (accountValue != IntPtr.Zero) g_free(accountValue);
+                if (accountValue != IntPtr.Zero)
+                    g_free(accountValue);
             }
             catch
             {
@@ -278,6 +323,10 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         {
             // Use Marshal.PtrToStructure for safe, portable access
             GErrorStruct gError = Marshal.PtrToStructure<GErrorStruct>(error);
+            
+            if (gError.message == IntPtr.Zero)
+                return null;
+            
             return Marshal.PtrToStringUTF8(gError.message);
         }
         catch
@@ -326,7 +375,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     private static extern IntPtr dlerror();
 
     /// <summary>
-    /// Lookup a password using attributes hash table (non-variadic, more reliable).
+    /// Lookup a password using attributes hash table.
     /// </summary>
     [DllImport(LibSecret, CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr secret_password_lookupv_sync(
