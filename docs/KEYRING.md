@@ -34,7 +34,7 @@ Or manually using `secret-tool`:
 ```bash
 secret-tool store --label='AuthReverseProxy HTTPS Certificate Password' \
     service AuthReverseProxy \
-    account AuthReverseProxyHttpsCertificate
+    account HttpsCertificate
 ```
 
 ### 2. Verify Storage
@@ -42,7 +42,7 @@ secret-tool store --label='AuthReverseProxy HTTPS Certificate Password' \
 Check that the password is stored correctly:
 
 ```bash
-secret-tool lookup service AuthReverseProxy account AuthReverseProxyHttpsCertificate
+secret-tool lookup service AuthReverseProxy account HttpsCertificate
 ```
 
 ### 3. Run the Application
