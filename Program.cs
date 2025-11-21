@@ -18,9 +18,10 @@ builder.Environment.EnvironmentName = Environments.Development;
 builder.Environment.EnvironmentName = Environments.Production;
 #endif
 
-// Configure Kestrel with HTTPS only
+// Configure Kestrel with HTTPS as primary, HTTP for redirect
 string hostname = builder.Configuration["Hostname"] ?? "localhost";
 int httpsPort = builder.Configuration.GetValue<int>("HttpsPort", 7000);
+int httpPort = builder.Configuration.GetValue<int>("HttpPort", 7001);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -28,9 +29,13 @@ builder.WebHost.ConfigureKestrel(options =>
     {
         listenOptions.UseHttps();
     });
+    options.ListenAnyIP(httpPort);
 });
 
 WebApplication app = builder.Build();
+
+// Redirect HTTP to HTTPS
+app.UseHttpsRedirection();
 
 app.MapGet("/", () => "Hello World!");
 
