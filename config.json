@@ -1,9 +1,13 @@
 {
+    "Hostname": "localhost",
+    "HttpsPort": 443,
+    "HttpPort": 80,
+    "CertificatePath": "",
+    "CertificatePassword": "",
     "Logging": {
         "LogLevel": {
             "Default": "Information",
             "Microsoft.AspNetCore": "Warning"
         }
-    },
-    "AllowedHosts": "*"
+    }
 }
