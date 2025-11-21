@@ -72,37 +72,56 @@ public class KeyringConfigurationProvider : ConfigurationProvider
             if (_gStrHashPtr != IntPtr.Zero && _gStrEqualPtr != IntPtr.Zero)
                 return;
 
-            // Open GLib library once
-            _glibHandle = dlopen(LibGLib, RTLD_LAZY);
-            if (_glibHandle == IntPtr.Zero)
+            IntPtr libHandle = IntPtr.Zero;
+
+            try
             {
-                IntPtr error = dlerror();
-                string? errorMsg = error != IntPtr.Zero ? Marshal.PtrToStringUTF8(error) : "Unknown error";
-                throw new InvalidOperationException($"Failed to load {LibGLib}: {errorMsg}");
+                // Open GLib library once
+                libHandle = dlopen(LibGLib, RTLD_LAZY);
+                if (libHandle == IntPtr.Zero)
+                {
+                    IntPtr error = dlerror();
+                    string? errorMsg = error != IntPtr.Zero ? Marshal.PtrToStringUTF8(error) : "Unknown error";
+                    throw new InvalidOperationException($"Failed to load {LibGLib}: {errorMsg}");
+                }
+
+                // Clear any existing error
+                dlerror();
+
+                // Get g_str_hash pointer
+                IntPtr gStrHashPtr = dlsym(libHandle, "g_str_hash");
+                IntPtr error1 = dlerror();
+                if (error1 != IntPtr.Zero)
+                {
+                    string? errorMsg = Marshal.PtrToStringUTF8(error1);
+                    throw new InvalidOperationException($"Failed to find g_str_hash symbol: {errorMsg}");
+                }
+
+                // Clear error again
+                dlerror();
+
+                // Get g_str_equal pointer
+                IntPtr gStrEqualPtr = dlsym(libHandle, "g_str_equal");
+                IntPtr error2 = dlerror();
+                if (error2 != IntPtr.Zero)
+                {
+                    string? errorMsg = Marshal.PtrToStringUTF8(error2);
+                    throw new InvalidOperationException($"Failed to find g_str_equal symbol: {errorMsg}");
+                }
+
+                // Only set static fields after ALL operations succeed
+                _glibHandle = libHandle;
+                _gStrHashPtr = gStrHashPtr;
+                _gStrEqualPtr = gStrEqualPtr;
             }
-
-            // Clear any existing error
-            dlerror();
-
-            // Get g_str_hash pointer
-            _gStrHashPtr = dlsym(_glibHandle, "g_str_hash");
-            IntPtr error1 = dlerror();
-            if (error1 != IntPtr.Zero)
+            catch
             {
-                string? errorMsg = Marshal.PtrToStringUTF8(error1);
-                throw new InvalidOperationException($"Failed to find g_str_hash symbol: {errorMsg}");
-            }
-
-            // Clear error again
-            dlerror();
-
-            // Get g_str_equal pointer
-            _gStrEqualPtr = dlsym(_glibHandle, "g_str_equal");
-            IntPtr error2 = dlerror();
-            if (error2 != IntPtr.Zero)
-            {
-                string? errorMsg = Marshal.PtrToStringUTF8(error2);
-                throw new InvalidOperationException($"Failed to find g_str_equal symbol: {errorMsg}");
+                // Clean up library handle on failure
+                if (libHandle != IntPtr.Zero)
+                {
+                    dlclose(libHandle);
+                }
+                throw;
             }
         }
     }
@@ -140,12 +159,24 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         {
             // Add service attribute using g_strdup
             serviceKey = g_strdup("service");
+            if (serviceKey == IntPtr.Zero)
+                throw new OutOfMemoryException("Failed to allocate memory for 'service' key");
+
             serviceValue = g_strdup(service);
+            if (serviceValue == IntPtr.Zero)
+                throw new OutOfMemoryException($"Failed to allocate memory for service value '{service}'");
+
             g_hash_table_insert(attributes, serviceKey, serviceValue);
 
             // Add account attribute using g_strdup
             accountKey = g_strdup("account");
+            if (accountKey == IntPtr.Zero)
+                throw new OutOfMemoryException("Failed to allocate memory for 'account' key");
+
             accountValue = g_strdup(account);
+            if (accountValue == IntPtr.Zero)
+                throw new OutOfMemoryException($"Failed to allocate memory for account value '{account}'");
+
             g_hash_table_insert(attributes, accountKey, accountValue);
 
             IntPtr error = IntPtr.Zero;
@@ -236,17 +267,34 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     }
 
     /// <summary>
-    /// Extracts error message from GError structure.
+    /// Extracts error message from GError structure using proper marshaling.
     /// </summary>
     private static string? GetGErrorMessage(IntPtr error)
     {
         if (error == IntPtr.Zero)
             return null;
 
-        // GError structure: { GQuark domain (4 bytes); gint code (4 bytes); gchar *message (pointer); }
-        // Message pointer is at offset 8 on both 32-bit and 64-bit systems
-        IntPtr messagePtr = Marshal.ReadIntPtr(error, 8);
-        return Marshal.PtrToStringUTF8(messagePtr);
+        try
+        {
+            // Use Marshal.PtrToStructure for safe, portable access
+            GErrorStruct gError = Marshal.PtrToStructure<GErrorStruct>(error);
+            return Marshal.PtrToStringUTF8(gError.message);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// GError structure definition with proper layout.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GErrorStruct
+    {
+        public uint domain;      // GQuark (guint32)
+        public int code;         // gint (gint32)
+        public IntPtr message;   // gchar* - marshaler handles padding correctly
     }
 
     #region P/Invoke Declarations
@@ -258,6 +306,12 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// </summary>
     [DllImport("libdl.so.2", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr dlopen([MarshalAs(UnmanagedType.LPUTF8Str)] string filename, int flags);
+
+    /// <summary>
+    /// Close a shared library.
+    /// </summary>
+    [DllImport("libdl.so.2", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int dlclose(IntPtr handle);
 
     /// <summary>
     /// Get the address of a symbol in a shared library.
