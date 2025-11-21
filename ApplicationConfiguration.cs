@@ -23,25 +23,25 @@ public sealed class ApplicationConfiguration
         // Validate hostname
         if (string.IsNullOrWhiteSpace(hostname))
         {
-            throw new InvalidOperationException("Hostname must be configured and cannot be empty.");
+            throw new ArgumentException("Hostname must be configured and cannot be empty.", nameof(hostname));
         }
 
         // Validate HTTPS port
         if (httpsPort < 1 || httpsPort > ushort.MaxValue)
         {
-            throw new InvalidOperationException($"Invalid HttpsPort: {httpsPort}. Must be between 1 and {ushort.MaxValue}.");
+            throw new ArgumentOutOfRangeException(nameof(httpsPort), httpsPort, $"HttpsPort must be between 1 and {ushort.MaxValue}.");
         }
 
         // Validate HTTP port
         if (httpPort < 1 || httpPort > ushort.MaxValue)
         {
-            throw new InvalidOperationException($"Invalid HttpPort: {httpPort}. Must be between 1 and {ushort.MaxValue}.");
+            throw new ArgumentOutOfRangeException(nameof(httpPort), httpPort, $"HttpPort must be between 1 and {ushort.MaxValue}.");
         }
 
         // Validate ports are different
         if (httpPort == httpsPort)
         {
-            throw new InvalidOperationException("HttpPort and HttpsPort must be different.");
+            throw new ArgumentException($"HttpPort and HttpsPort must be different. Both are set to {httpPort}.");
         }
 
         // Validate certificate configuration: both path and password must be provided together
@@ -50,12 +50,12 @@ public sealed class ApplicationConfiguration
         
         if (hasPath && !hasPassword)
         {
-            throw new InvalidOperationException("CertificatePassword must be provided when CertificatePath is specified.");
+            throw new ArgumentException("CertificatePassword must be provided when CertificatePath is specified.", nameof(certificatePassword));
         }
         
         if (!hasPath && hasPassword)
         {
-            throw new InvalidOperationException("CertificatePath must be provided when CertificatePassword is specified.");
+            throw new ArgumentException("CertificatePath must be provided when CertificatePassword is specified.", nameof(certificatePath));
         }
 
         return new ApplicationConfiguration
