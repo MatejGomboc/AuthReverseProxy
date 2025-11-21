@@ -44,10 +44,18 @@ public sealed class ApplicationConfiguration
             throw new InvalidOperationException("HttpPort and HttpsPort must be different.");
         }
 
-        // Validate certificate file exists if path is specified
-        if (!string.IsNullOrWhiteSpace(certificatePath) && !File.Exists(certificatePath))
+        // Validate certificate configuration: both path and password must be provided together
+        bool hasPath = !string.IsNullOrWhiteSpace(certificatePath);
+        bool hasPassword = !string.IsNullOrWhiteSpace(certificatePassword);
+        
+        if (hasPath && !hasPassword)
         {
-            throw new InvalidOperationException($"Certificate file not found: {certificatePath}");
+            throw new InvalidOperationException("CertificatePassword must be provided when CertificatePath is specified.");
+        }
+        
+        if (!hasPath && hasPassword)
+        {
+            throw new InvalidOperationException("CertificatePath must be provided when CertificatePassword is specified.");
         }
 
         return new ApplicationConfiguration
