@@ -25,7 +25,7 @@ builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnC
 builder.Configuration.Add(new KeyringConfigurationSource
 {
     Service = "AuthReverseProxy",
-    Account = "certificate-default",
+    Account = "AuthReverseProxyHttpsCertificate",
     ConfigKey = "CertificatePassword"
 });
 
