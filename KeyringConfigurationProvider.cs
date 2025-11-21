@@ -18,7 +18,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <param name="service">The service name for keyring lookup.</param>
     /// <param name="account">The account name for keyring lookup.</param>
     /// <param name="configKey">The configuration key to populate with the retrieved secret.</param>
-    public KeyringConfigurationProvider(string service, string account, string configKey = "CertificatePassword")
+    public KeyringConfigurationProvider(string service, string account, string configKey = "HttpsCertificatePassword")
     {
         _service = service;
         _account = account;
