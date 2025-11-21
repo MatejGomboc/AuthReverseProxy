@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Extensions.Configuration;
 
 namespace AuthReverseProxy;
@@ -9,6 +10,7 @@ namespace AuthReverseProxy;
 public class KeyringConfigurationProvider : ConfigurationProvider
 {
     private const string LibSecret = "libsecret-1.so.0";
+    private const string LibGLib = "libglib-2.0.so.0";
 
     private readonly string _service;
     private readonly string _account;
@@ -59,42 +61,80 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <returns>The retrieved secret, or null if not found or on error.</returns>
     private static string? FetchSecretFromKeyring(string service, string account)
     {
-        IntPtr error = IntPtr.Zero;
+        // Create GHashTable for attributes
+        IntPtr attributes = g_hash_table_new_full(
+            g_str_hash,
+            g_str_equal,
+            IntPtr.Zero,  // key_destroy_func
+            IntPtr.Zero); // value_destroy_func
 
-        // Lookup password with service and account attributes
-        // NULL schema means use simple attribute matching
-        IntPtr passwordPtr = secret_password_lookup_sync(
-            IntPtr.Zero,        // schema (NULL = use attributes)
-            IntPtr.Zero,        // cancellable (NULL = no cancellation)
-            out error,          // error output
-            "service", service, // first attribute key-value pair
-            "account", account, // second attribute key-value pair
-            IntPtr.Zero);       // NULL terminator for variadic args
-
-        // Check for errors
-        if (error != IntPtr.Zero)
+        if (attributes == IntPtr.Zero)
         {
-            string? errorMessage = GetGErrorMessage(error);
-            g_error_free(error);
-            throw new InvalidOperationException($"libsecret error: {errorMessage ?? "Unknown error"}");
-        }
-
-        // No password found
-        if (passwordPtr == IntPtr.Zero)
-        {
-            return null;
+            throw new InvalidOperationException("Failed to create GHashTable for attributes.");
         }
 
         try
         {
-            // Marshal UTF-8 string from native memory
-            return Marshal.PtrToStringUTF8(passwordPtr);
+            // Add service attribute
+            IntPtr serviceKey = MarshalUtf8String("service");
+            IntPtr serviceValue = MarshalUtf8String(service);
+            g_hash_table_insert(attributes, serviceKey, serviceValue);
+
+            // Add account attribute
+            IntPtr accountKey = MarshalUtf8String("account");
+            IntPtr accountValue = MarshalUtf8String(account);
+            g_hash_table_insert(attributes, accountKey, accountValue);
+
+            IntPtr error = IntPtr.Zero;
+
+            // Use lookupv which takes a GHashTable (more reliable than variadic version)
+            IntPtr passwordPtr = secret_password_lookupv_sync(
+                IntPtr.Zero,     // schema (NULL = generic)
+                attributes,      // attribute hash table
+                IntPtr.Zero,     // cancellable (NULL = no cancellation)
+                out error);      // error output
+
+            // Check for errors
+            if (error != IntPtr.Zero)
+            {
+                string? errorMessage = GetGErrorMessage(error);
+                g_error_free(error);
+                throw new InvalidOperationException($"libsecret error: {errorMessage ?? "Unknown error"}");
+            }
+
+            // No password found
+            if (passwordPtr == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                // Marshal UTF-8 string from native memory
+                return Marshal.PtrToStringUTF8(passwordPtr);
+            }
+            finally
+            {
+                // Always free the password memory
+                secret_password_free(passwordPtr);
+            }
         }
         finally
         {
-            // Always free the password memory
-            secret_password_free(passwordPtr);
+            // Clean up the hash table
+            g_hash_table_destroy(attributes);
         }
+    }
+
+    /// <summary>
+    /// Marshal a .NET string to UTF-8 native string.
+    /// </summary>
+    private static IntPtr MarshalUtf8String(string str)
+    {
+        byte[] utf8Bytes = Encoding.UTF8.GetBytes(str + "\0"); // null-terminated
+        IntPtr ptr = Marshal.AllocHGlobal(utf8Bytes.Length);
+        Marshal.Copy(utf8Bytes, 0, ptr, utf8Bytes.Length);
+        return ptr;
     }
 
     /// <summary>
@@ -105,27 +145,24 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         if (error == IntPtr.Zero)
             return null;
 
-        // GError structure: { GQuark domain; gint code; gchar *message; }
-        // Read the message pointer (3rd field, at offset 8 on 64-bit)
-        IntPtr messagePtr = Marshal.ReadIntPtr(error, IntPtr.Size * 2);
+        // GError structure: { GQuark domain (4 bytes); gint code (4 bytes); gchar *message (pointer); }
+        // On 64-bit: message pointer is at offset 8 (after 4-byte domain and 4-byte code)
+        // On 32-bit: message pointer is at offset 8 (same layout)
+        IntPtr messagePtr = Marshal.ReadIntPtr(error, 8);
         return Marshal.PtrToStringUTF8(messagePtr);
     }
 
     #region P/Invoke Declarations
 
     /// <summary>
-    /// Lookup a password in the secret service.
+    /// Lookup a password using attributes hash table (non-variadic, more reliable).
     /// </summary>
-    [DllImport(LibSecret, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    private static extern IntPtr secret_password_lookup_sync(
+    [DllImport(LibSecret, CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr secret_password_lookupv_sync(
         IntPtr schema,
+        IntPtr attributes,
         IntPtr cancellable,
-        out IntPtr error,
-        string attribute1_name,
-        string attribute1_value,
-        string attribute2_name,
-        string attribute2_value,
-        IntPtr end);
+        out IntPtr error);
 
     /// <summary>
     /// Free a password retrieved from the secret service.
@@ -136,8 +173,42 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <summary>
     /// Free a GError structure.
     /// </summary>
-    [DllImport("libglib-2.0.so.0", CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
     private static extern void g_error_free(IntPtr error);
+
+    /// <summary>
+    /// Create a new GHashTable.
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr g_hash_table_new_full(
+        IntPtr hash_func,
+        IntPtr key_equal_func,
+        IntPtr key_destroy_func,
+        IntPtr value_destroy_func);
+
+    /// <summary>
+    /// Insert a key-value pair into GHashTable.
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void g_hash_table_insert(IntPtr hash_table, IntPtr key, IntPtr value);
+
+    /// <summary>
+    /// Destroy a GHashTable.
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void g_hash_table_destroy(IntPtr hash_table);
+
+    /// <summary>
+    /// GLib string hash function.
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr g_str_hash();
+
+    /// <summary>
+    /// GLib string equality function.
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr g_str_equal();
 
     #endregion
 }
