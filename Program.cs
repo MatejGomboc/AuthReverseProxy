@@ -30,7 +30,26 @@ builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
 // Load and validate configuration
-ApplicationConfiguration config = ApplicationConfiguration.LoadAndValidate(builder.Configuration);
+ApplicationConfiguration config;
+try
+{
+    config = new ApplicationConfiguration(builder.Configuration);
+}
+catch (ArgumentException ex)
+{
+    Console.Error.WriteLine($"Configuration error: {ex.Message}");
+    return 1;
+}
+catch (ArgumentOutOfRangeException ex)
+{
+    Console.Error.WriteLine($"Configuration error: {ex.Message}");
+    return 1;
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Unexpected error loading configuration: {ex.Message}");
+    return 1;
+}
 
 // Configure HTTPS redirection
 builder.Services.Configure<HttpsRedirectionOptions>(options =>
@@ -66,3 +85,5 @@ app.UseHttpsRedirection();
 app.MapGet("/", () => "Hello World!");
 
 app.Run();
+
+return 0;
