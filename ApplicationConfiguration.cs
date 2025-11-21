@@ -1,5 +1,3 @@
-using System;
-
 namespace AuthReverseProxy;
 
 public sealed class ApplicationConfiguration
