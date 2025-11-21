@@ -27,7 +27,13 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends ca-certificates git curl && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        curl \
+        gnome-keyring \
+        libsecret-tools \
+        dbus-x11 && \
     # Install Task
     bash /tmp/downloads/setup.deb.sh && \
     apt-get update && \
