@@ -16,6 +16,10 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     private readonly string _account;
     private readonly string _configKey;
 
+    // Cache delegate instances to prevent garbage collection
+    private static readonly GStrHashDelegate _gStrHashDelegate = g_str_hash;
+    private static readonly GStrEqualDelegate _gStrEqualDelegate = g_str_equal;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="KeyringConfigurationProvider"/> class.
     /// </summary>
@@ -84,8 +88,9 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     private static string? FetchSecretFromKeyring(string service, string account)
     {
         // Get function pointers for GHashTable creation
-        IntPtr gStrHashFunc = GetGStrHash();
-        IntPtr gStrEqualFunc = GetGStrEqual();
+        // We keep delegate instances alive in static fields to prevent GC
+        IntPtr gStrHashFunc = Marshal.GetFunctionPointerForDelegate(_gStrHashDelegate);
+        IntPtr gStrEqualFunc = Marshal.GetFunctionPointerForDelegate(_gStrEqualDelegate);
 
         if (gStrHashFunc == IntPtr.Zero || gStrEqualFunc == IntPtr.Zero)
         {
@@ -200,38 +205,6 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
                 try { g_free(serviceKey); }
                 catch { /* Suppress cleanup exceptions */ }
             }
-        }
-    }
-
-    /// <summary>
-    /// Gets the function pointer for g_str_hash.
-    /// </summary>
-    private static IntPtr GetGStrHash()
-    {
-        // On most systems, g_str_hash is exported and can be accessed via GetProcAddress
-        // We use a wrapper delegate to get its address
-        try
-        {
-            return Marshal.GetFunctionPointerForDelegate<GStrHashDelegate>(g_str_hash);
-        }
-        catch
-        {
-            return IntPtr.Zero;
-        }
-    }
-
-    /// <summary>
-    /// Gets the function pointer for g_str_equal.
-    /// </summary>
-    private static IntPtr GetGStrEqual()
-    {
-        try
-        {
-            return Marshal.GetFunctionPointerForDelegate<GStrEqualDelegate>(g_str_equal);
-        }
-        catch
-        {
-            return IntPtr.Zero;
         }
     }
 
