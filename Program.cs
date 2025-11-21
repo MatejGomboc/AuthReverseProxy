@@ -40,11 +40,6 @@ catch (ArgumentException ex)
     Console.Error.WriteLine($"Configuration error: {ex.Message}");
     return 1;
 }
-catch (ArgumentOutOfRangeException ex)
-{
-    Console.Error.WriteLine($"Configuration error: {ex.Message}");
-    return 1;
-}
 catch (Exception ex)
 {
     Console.Error.WriteLine($"Unexpected error loading configuration: {ex.Message}");
