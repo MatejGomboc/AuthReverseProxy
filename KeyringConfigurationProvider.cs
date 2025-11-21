@@ -126,22 +126,53 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         }
         finally
         {
-            // Clean up the hash table first (removes references to our strings)
-            g_hash_table_destroy(attributes);
-
-            // Now manually free the strings we allocated with g_strdup
-            // Wrap in try-catch to prevent masking original exceptions
+            // Wrap ALL cleanup in try-catch to ensure we attempt all cleanup
+            // even if one operation fails, and to avoid masking original exceptions
             try
             {
+                // Clean up the hash table first (removes references to our strings)
+                g_hash_table_destroy(attributes);
+            }
+            catch
+            {
+                // Suppress hash table cleanup exceptions
+            }
+
+            try
+            {
+                // Now manually free the strings we allocated with g_strdup
                 if (serviceKey != IntPtr.Zero) g_free(serviceKey);
+            }
+            catch
+            {
+                // Suppress g_free exceptions
+            }
+
+            try
+            {
                 if (serviceValue != IntPtr.Zero) g_free(serviceValue);
+            }
+            catch
+            {
+                // Suppress g_free exceptions
+            }
+
+            try
+            {
                 if (accountKey != IntPtr.Zero) g_free(accountKey);
+            }
+            catch
+            {
+                // Suppress g_free exceptions
+            }
+
+            try
+            {
                 if (accountValue != IntPtr.Zero) g_free(accountValue);
             }
             catch
             {
-                // Suppress cleanup exceptions to avoid masking original error
-                // These should never throw, but better safe than sorry
+                // Suppress g_free exceptions
             }
         }
     }
