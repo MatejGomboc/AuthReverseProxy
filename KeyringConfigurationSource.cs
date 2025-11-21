@@ -20,7 +20,7 @@ public class KeyringConfigurationSource : IConfigurationSource
     /// <summary>
     /// Gets or sets the configuration key to populate with the retrieved secret.
     /// </summary>
-    public string ConfigKey { get; set; } = "CertificatePassword";
+    public string ConfigKey { get; set; } = "HttpsCertificatePassword";
 
     /// <summary>
     /// Builds the configuration provider.
