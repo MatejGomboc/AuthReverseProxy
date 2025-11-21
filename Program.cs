@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -14,31 +13,24 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationO
     Args = [],
     ContentRootPath = AppContext.BaseDirectory,
     WebRootPath = "",
-    EnvironmentName =
-#if DEVELOPMENT
-        Environments.Development
-#else
-        Environments.Production
-#endif
+    EnvironmentName = ""
 });
 
 builder.Configuration.Sources.Clear();
-
 builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: false);
-
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
 ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
 
 if (config is null)
 {
-    Console.Error.WriteLine("Configuration error: Failed to load configuration.");
+    Console.Error.WriteLine("Configuration error: Config is null.");
     return 1;
 }
 
 if (config.HttpPort == config.HttpsPort)
 {
-    Console.Error.WriteLine($"Configuration error: HttpPort and HttpsPort must be different. Both are set to {config.HttpPort}.");
+    Console.Error.WriteLine("Configuration error: HTTP port and HTTPS port have the same value.");
     return 1;
 }
 
