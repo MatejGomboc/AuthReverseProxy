@@ -83,7 +83,7 @@ builder.Configuration.Add(new KeyringConfigurationSource
 {
     Service = "MyCustomService",
     Account = "MyCustomCertificate",
-    ConfigKey = "CertificatePassword"
+    ConfigKey = "HttpsCertificatePassword"
 });
 ```
 
