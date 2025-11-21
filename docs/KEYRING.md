@@ -12,11 +12,10 @@ AuthReverseProxy uses a custom configuration provider to retrieve sensitive cred
 
 ## Architecture
 
-The keyring integration consists of three components:
+The keyring integration consists of two components:
 
 1. **KeyringConfigurationProvider**: Retrieves secrets from the keyring during application startup
 2. **KeyringConfigurationSource**: Configuration source that integrates with ASP.NET Core's configuration system
-3. **KeyringConfigurationExtensions**: Extension methods for clean API usage
 
 The certificate password is retrieved automatically when the application starts and integrated into the configuration pipeline, making it available to `ApplicationConfiguration` just like any other configuration value.
 
@@ -80,11 +79,12 @@ Ensure the application process has permission to access the keyring daemon and D
 You can customize the keyring lookup parameters in `Program.cs`:
 
 ```csharp
-builder.Configuration.AddKeyring(
-    service: "MyCustomService",
-    account: "my-certificate",
-    configKey: "CertificatePassword"
-);
+builder.Configuration.Add(new KeyringConfigurationSource
+{
+    Service = "MyCustomService",
+    Account = "my-certificate",
+    ConfigKey = "CertificatePassword"
+});
 ```
 
 ## Security Considerations
