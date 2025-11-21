@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using Microsoft.Extensions.Configuration;
 
 namespace AuthReverseProxy;
@@ -131,10 +130,19 @@ public class KeyringConfigurationProvider : ConfigurationProvider
             g_hash_table_destroy(attributes);
 
             // Now manually free the strings we allocated with g_strdup
-            if (serviceKey != IntPtr.Zero) g_free(serviceKey);
-            if (serviceValue != IntPtr.Zero) g_free(serviceValue);
-            if (accountKey != IntPtr.Zero) g_free(accountKey);
-            if (accountValue != IntPtr.Zero) g_free(accountValue);
+            // Wrap in try-catch to prevent masking original exceptions
+            try
+            {
+                if (serviceKey != IntPtr.Zero) g_free(serviceKey);
+                if (serviceValue != IntPtr.Zero) g_free(serviceValue);
+                if (accountKey != IntPtr.Zero) g_free(accountKey);
+                if (accountValue != IntPtr.Zero) g_free(accountValue);
+            }
+            catch
+            {
+                // Suppress cleanup exceptions to avoid masking original error
+                // These should never throw, but better safe than sorry
+            }
         }
     }
 
@@ -147,8 +155,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
             return null;
 
         // GError structure: { GQuark domain (4 bytes); gint code (4 bytes); gchar *message (pointer); }
-        // On 64-bit: message pointer is at offset 8 (after 4-byte domain and 4-byte code)
-        // On 32-bit: message pointer is at offset 8 (same layout)
+        // Message pointer is at offset 8 on both 32-bit and 64-bit systems
         IntPtr messagePtr = Marshal.ReadIntPtr(error, 8);
         return Marshal.PtrToStringUTF8(messagePtr);
     }
@@ -212,9 +219,9 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     private static extern IntPtr g_str_equal();
 
     /// <summary>
-    /// Duplicate a string using GLib allocator.
+    /// Duplicate a string using GLib allocator (handles UTF-8 correctly).
     /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr g_strdup([MarshalAs(UnmanagedType.LPUTF8Str)] string str);
 
     /// <summary>
