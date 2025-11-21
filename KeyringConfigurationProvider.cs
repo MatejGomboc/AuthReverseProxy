@@ -61,12 +61,15 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <returns>The retrieved secret, or null if not found or on error.</returns>
     private static string? FetchSecretFromKeyring(string service, string account)
     {
-        // Create GHashTable for attributes
+        // Get GLib's free function pointer for proper cleanup
+        IntPtr gFreeFunc = g_free_ptr();
+
+        // Create GHashTable for attributes with g_free as destroyer
         IntPtr attributes = g_hash_table_new_full(
-            g_str_hash,
-            g_str_equal,
-            IntPtr.Zero,  // key_destroy_func
-            IntPtr.Zero); // value_destroy_func
+            g_str_hash(),
+            g_str_equal(),
+            gFreeFunc,  // key_destroy_func - will call g_free on keys
+            gFreeFunc); // value_destroy_func - will call g_free on values
 
         if (attributes == IntPtr.Zero)
         {
@@ -121,18 +124,18 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         }
         finally
         {
-            // Clean up the hash table
+            // Clean up the hash table (will automatically free all keys and values via g_free)
             g_hash_table_destroy(attributes);
         }
     }
 
     /// <summary>
-    /// Marshal a .NET string to UTF-8 native string.
+    /// Marshal a .NET string to UTF-8 native string using GLib's allocator.
     /// </summary>
     private static IntPtr MarshalUtf8String(string str)
     {
         byte[] utf8Bytes = Encoding.UTF8.GetBytes(str + "\0"); // null-terminated
-        IntPtr ptr = Marshal.AllocHGlobal(utf8Bytes.Length);
+        IntPtr ptr = g_malloc(utf8Bytes.Length);
         Marshal.Copy(utf8Bytes, 0, ptr, utf8Bytes.Length);
         return ptr;
     }
@@ -199,16 +202,28 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     private static extern void g_hash_table_destroy(IntPtr hash_table);
 
     /// <summary>
-    /// GLib string hash function.
+    /// GLib string hash function pointer.
     /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_str_hash")]
     private static extern IntPtr g_str_hash();
 
     /// <summary>
-    /// GLib string equality function.
+    /// GLib string equality function pointer.
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_str_equal")]
+    private static extern IntPtr g_str_equal();
+
+    /// <summary>
+    /// GLib memory allocator.
     /// </summary>
     [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
-    private static extern IntPtr g_str_equal();
+    private static extern IntPtr g_malloc(int size);
+
+    /// <summary>
+    /// GLib free function pointer (for use as destroy function).
+    /// </summary>
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_free")]
+    private static extern IntPtr g_free_ptr();
 
     #endregion
 }
