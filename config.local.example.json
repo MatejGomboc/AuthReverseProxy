@@ -1,5 +1,5 @@
 {
-    "Hostname": "127.0.0.1",
+    "Hostname": "localhost",
     "HttpsPort": 7000,
     "HttpPort": 7001,
     "CertificatePath": "",
