@@ -26,7 +26,7 @@ builder.Configuration.Add(new KeyringConfigurationSource
 {
     Service = "AuthReverseProxy",
     Account = "HttpsCertificate",
-    ConfigKey = "CertificatePassword"
+    ConfigKey = "HttpsCertificatePassword"
 });
 
 ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
@@ -62,7 +62,7 @@ builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
     options.Listen(config.Hostname, config.HttpsPort, (ListenOptions listenOptions) =>
     {
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
+        listenOptions.UseHttps(config.HttpsCertificatePath, config.HttpsCertificatePassword);
     });
 
     // HTTP listener (for redirects only)
