@@ -1,0 +1,11 @@
+{
+    "Hostname": "localhost",
+    "HttpsPort": 7000,
+    "HttpPort": 7001,
+    "Logging": {
+        "LogLevel": {
+            "Default": "Information",
+            "Microsoft.AspNetCore": "Warning"
+        }
+    }
+}
