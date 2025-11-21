@@ -60,12 +60,18 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         ProcessStartInfo startInfo = new()
         {
             FileName = "secret-tool",
-            Arguments = $"lookup service {service} account {account}",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        // Add arguments safely to avoid command injection
+        startInfo.ArgumentList.Add("lookup");
+        startInfo.ArgumentList.Add("service");
+        startInfo.ArgumentList.Add(service);
+        startInfo.ArgumentList.Add("account");
+        startInfo.ArgumentList.Add(account);
 
         using Process? process = Process.Start(startInfo);
         if (process is null)
@@ -73,9 +79,21 @@ public class KeyringConfigurationProvider : ConfigurationProvider
             throw new InvalidOperationException("Failed to start secret-tool process.");
         }
 
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+        // Read output and error asynchronously to prevent deadlock
+        System.Threading.Tasks.Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+        System.Threading.Tasks.Task<string> errorTask = process.StandardError.ReadToEndAsync();
+
+        // Wait for process to exit with timeout (10 seconds)
+        bool exited = process.WaitForExit(10000);
+        if (!exited)
+        {
+            process.Kill();
+            throw new TimeoutException("secret-tool process timed out after 10 seconds.");
+        }
+
+        // Wait for async reads to complete
+        string output = outputTask.Result;
+        string error = errorTask.Result;
 
         if (process.ExitCode != 0)
         {
