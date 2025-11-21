@@ -20,6 +20,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationO
 builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: false);
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
+builder.Configuration.AddKeyring(); // Add keyring configuration provider for sensitive credentials
 
 ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
 
