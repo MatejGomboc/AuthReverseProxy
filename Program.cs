@@ -5,7 +5,16 @@ using Microsoft.Extensions.Hosting;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
-    Args = []
+    ApplicationName = "AuthReverseProxy",
+    Args = [],
+    ContentRootPath = AppContext.BaseDirectory,
+    WebRootPath = "",
+    EnvironmentName = 
+#if DEVELOPMENT
+        Environments.Development
+#else
+        Environments.Production
+#endif
 });
 
 // Clear default configuration sources
@@ -16,13 +25,6 @@ builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange
 
 // Add optional config.local.json for local development overrides (not committed)
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
-
-// Set environment based on compile-time constant
-#if DEVELOPMENT
-builder.Environment.EnvironmentName = Environments.Development;
-#else
-builder.Environment.EnvironmentName = Environments.Production;
-#endif
 
 // Configure Kestrel with HTTPS as primary, HTTP for redirect
 string hostname = builder.Configuration["Hostname"] ?? "localhost";
