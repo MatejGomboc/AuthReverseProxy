@@ -4,9 +4,6 @@
         <Nullable>enable</Nullable>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
         <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-        <DefineConstants>$(DefineConstants);DEVELOPMENT</DefineConstants>
+        <DefineConstants>$(DefineConstants);PRODUCTION</DefineConstants>
     </PropertyGroup>
 </Project>
