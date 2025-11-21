@@ -28,10 +28,17 @@ builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange
 
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
-ApplicationConfiguration config;
+ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
+
+if (config is null)
+{
+    Console.Error.WriteLine("Configuration error: Failed to load configuration.");
+    return 1;
+}
+
 try
 {
-    config = new ApplicationConfiguration(builder.Configuration);
+    config.Validate();
 }
 catch (ArgumentException ex)
 {
@@ -40,7 +47,7 @@ catch (ArgumentException ex)
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"Unexpected error loading configuration: {ex.Message}");
+    Console.Error.WriteLine($"Unexpected error validating configuration: {ex.Message}");
     return 1;
 }
 
