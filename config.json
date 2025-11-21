@@ -2,7 +2,7 @@
     "Hostname": "localhost",
     "HttpsPort": 443,
     "HttpPort": 80,
-    "CertificatePath": "",
+    "HttpsCertificatePath": "",
     "Logging": {
         "LogLevel": {
             "Default": "Information",
