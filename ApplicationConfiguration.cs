@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Microsoft.Extensions.Configuration;
 
 namespace AuthReverseProxy;
@@ -28,9 +29,11 @@ public sealed class ApplicationConfiguration
             throw new ArgumentNullException(nameof(Hostname), $"{nameof(Hostname)} is missing from configuration.");
         }
 
-        if (string.IsNullOrWhiteSpace(hostname))
+        hostname = hostname.Trim();
+
+        if (string.IsNullOrEmpty(hostname))
         {
-            throw new ArgumentException($"{nameof(Hostname)} cannot be empty or whitespace.", nameof(Hostname));
+            throw new ArgumentException($"{nameof(Hostname)} cannot be empty.", nameof(Hostname));
         }
 
         // Validate HttpsPort
@@ -77,10 +80,15 @@ public sealed class ApplicationConfiguration
             throw new ArgumentNullException(nameof(CertificatePath), $"{nameof(CertificatePath)} is missing from configuration.");
         }
 
-        if (string.IsNullOrWhiteSpace(certificatePath))
+        certificatePath = certificatePath.Trim();
+
+        if (string.IsNullOrEmpty(certificatePath))
         {
-            throw new ArgumentException($"{nameof(CertificatePath)} cannot be empty or whitespace.", nameof(CertificatePath));
+            throw new ArgumentException($"{nameof(CertificatePath)} cannot be empty.", nameof(CertificatePath));
         }
+
+        // Normalize path - resolves "..", makes absolute, standardizes separators
+        certificatePath = Path.GetFullPath(certificatePath);
 
         // Validate CertificatePassword
         if (certificatePassword is null)
@@ -88,9 +96,11 @@ public sealed class ApplicationConfiguration
             throw new ArgumentNullException(nameof(CertificatePassword), $"{nameof(CertificatePassword)} is missing from configuration.");
         }
 
-        if (string.IsNullOrWhiteSpace(certificatePassword))
+        certificatePassword = certificatePassword.Trim();
+
+        if (string.IsNullOrEmpty(certificatePassword))
         {
-            throw new ArgumentException($"{nameof(CertificatePassword)} cannot be empty or whitespace.", nameof(CertificatePassword));
+            throw new ArgumentException($"{nameof(CertificatePassword)} cannot be empty.", nameof(CertificatePassword));
         }
 
         // All validation passed - assign to properties
