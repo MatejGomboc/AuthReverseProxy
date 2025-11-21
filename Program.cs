@@ -51,14 +51,14 @@ builder.Services.AddHsts((HstsOptions options) =>
 builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
 {
     // HTTPS listener
-    options.Listen(config.Hostname, config.HttpsPort, listenOptions =>
+    options.Listen(config.Hostname, config.HttpsPort, (ListenOptions listenOptions) =>
     {
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
         listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
     });
 
     // HTTP listener (for redirects only)
-    options.Listen(config.Hostname, config.HttpPort, listenOptions =>
+    options.Listen(config.Hostname, config.HttpPort, (ListenOptions listenOptions) =>
     {
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
     });
