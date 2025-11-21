@@ -2,3 +2,4 @@ obj/
 bin/
 .vs/
 config.local.json
+*.csproj.user
