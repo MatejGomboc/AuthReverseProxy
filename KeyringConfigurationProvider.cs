@@ -18,6 +18,7 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     // Cache function pointers (loaded once)
     private static IntPtr _gStrHashPtr;
     private static IntPtr _gStrEqualPtr;
+    private static IntPtr _glibHandle;
     private static readonly object _functionPointerLock = new();
 
     /// <summary>
@@ -58,59 +59,52 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     }
 
     /// <summary>
-    /// Gets the function pointer for g_str_hash.
+    /// Initializes GLib function pointers (called once, thread-safe).
     /// </summary>
-    private static IntPtr GetGStrHashPointer()
+    private static void InitializeGLibFunctionPointers()
     {
-        if (_gStrHashPtr == IntPtr.Zero)
-        {
-            lock (_functionPointerLock)
-            {
-                if (_gStrHashPtr == IntPtr.Zero)
-                {
-                    IntPtr libHandle = dlopen(LibGLib, RTLD_LAZY);
-                    if (libHandle == IntPtr.Zero)
-                    {
-                        throw new InvalidOperationException("Failed to load libglib-2.0.so.0");
-                    }
+        if (_gStrHashPtr != IntPtr.Zero && _gStrEqualPtr != IntPtr.Zero)
+            return;
 
-                    _gStrHashPtr = dlsym(libHandle, "g_str_hash");
-                    if (_gStrHashPtr == IntPtr.Zero)
-                    {
-                        throw new InvalidOperationException("Failed to find g_str_hash symbol");
-                    }
-                }
+        lock (_functionPointerLock)
+        {
+            // Double-checked locking
+            if (_gStrHashPtr != IntPtr.Zero && _gStrEqualPtr != IntPtr.Zero)
+                return;
+
+            // Open GLib library once
+            _glibHandle = dlopen(LibGLib, RTLD_LAZY);
+            if (_glibHandle == IntPtr.Zero)
+            {
+                IntPtr error = dlerror();
+                string? errorMsg = error != IntPtr.Zero ? Marshal.PtrToStringUTF8(error) : "Unknown error";
+                throw new InvalidOperationException($"Failed to load {LibGLib}: {errorMsg}");
+            }
+
+            // Clear any existing error
+            dlerror();
+
+            // Get g_str_hash pointer
+            _gStrHashPtr = dlsym(_glibHandle, "g_str_hash");
+            IntPtr error1 = dlerror();
+            if (error1 != IntPtr.Zero)
+            {
+                string? errorMsg = Marshal.PtrToStringUTF8(error1);
+                throw new InvalidOperationException($"Failed to find g_str_hash symbol: {errorMsg}");
+            }
+
+            // Clear error again
+            dlerror();
+
+            // Get g_str_equal pointer
+            _gStrEqualPtr = dlsym(_glibHandle, "g_str_equal");
+            IntPtr error2 = dlerror();
+            if (error2 != IntPtr.Zero)
+            {
+                string? errorMsg = Marshal.PtrToStringUTF8(error2);
+                throw new InvalidOperationException($"Failed to find g_str_equal symbol: {errorMsg}");
             }
         }
-        return _gStrHashPtr;
-    }
-
-    /// <summary>
-    /// Gets the function pointer for g_str_equal.
-    /// </summary>
-    private static IntPtr GetGStrEqualPointer()
-    {
-        if (_gStrEqualPtr == IntPtr.Zero)
-        {
-            lock (_functionPointerLock)
-            {
-                if (_gStrEqualPtr == IntPtr.Zero)
-                {
-                    IntPtr libHandle = dlopen(LibGLib, RTLD_LAZY);
-                    if (libHandle == IntPtr.Zero)
-                    {
-                        throw new InvalidOperationException("Failed to load libglib-2.0.so.0");
-                    }
-
-                    _gStrEqualPtr = dlsym(libHandle, "g_str_equal");
-                    if (_gStrEqualPtr == IntPtr.Zero)
-                    {
-                        throw new InvalidOperationException("Failed to find g_str_equal symbol");
-                    }
-                }
-            }
-        }
-        return _gStrEqualPtr;
     }
 
     /// <summary>
@@ -121,10 +115,13 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <returns>The retrieved secret, or null if not found or on error.</returns>
     private static string? FetchSecretFromKeyring(string service, string account)
     {
+        // Initialize function pointers if needed
+        InitializeGLibFunctionPointers();
+
         // Create GHashTable for attributes - we'll manage memory manually
         IntPtr attributes = g_hash_table_new_full(
-            GetGStrHashPointer(),
-            GetGStrEqualPointer(),
+            _gStrHashPtr,
+            _gStrEqualPtr,
             IntPtr.Zero,  // key_destroy_func - NULL, we'll free manually
             IntPtr.Zero); // value_destroy_func - NULL, we'll free manually
 
@@ -267,6 +264,12 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// </summary>
     [DllImport("libdl.so.2", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr dlsym(IntPtr handle, [MarshalAs(UnmanagedType.LPUTF8Str)] string symbol);
+
+    /// <summary>
+    /// Get the last error from dynamic linker.
+    /// </summary>
+    [DllImport("libdl.so.2", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr dlerror();
 
     /// <summary>
     /// Lookup a password using attributes hash table (non-variadic, more reliable).
