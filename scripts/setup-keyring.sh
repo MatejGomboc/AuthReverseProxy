@@ -4,8 +4,8 @@
 set -e
 
 SERVICE="AuthReverseProxy"
-ACCOUNT="certificate-default"
-LABEL="AuthReverseProxy Certificate Password"
+ACCOUNT="AuthReverseProxyHttpsCertificate"
+LABEL="AuthReverseProxy HTTPS Certificate Password"
 
 echo "=== AuthReverseProxy Keyring Setup ==="
 echo
