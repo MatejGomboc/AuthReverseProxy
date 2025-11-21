@@ -1,8 +1,8 @@
 using System.Net;
+using AuthReverseProxy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -29,65 +29,33 @@ builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange
 // Add optional config.local.json for local development overrides (not committed)
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
-// Read and validate configuration
-string hostname = builder.Configuration["Hostname"] ?? "localhost";
-int httpsPort = builder.Configuration.GetValue<int>("HttpsPort", 443);
-int httpPort = builder.Configuration.GetValue<int>("HttpPort", 80);
-string certificatePath = builder.Configuration["CertificatePath"] ?? "";
-string certificatePassword = builder.Configuration["CertificatePassword"] ?? "";
-
-// Validate configuration
-if (string.IsNullOrWhiteSpace(hostname))
-{
-    throw new InvalidOperationException("Hostname must be configured.");
-}
-
-if (httpsPort < 1 || httpsPort > 65535)
-{
-    throw new InvalidOperationException($"Invalid HttpsPort: {httpsPort}. Must be between 1 and 65535.");
-}
-
-if (httpPort < 1 || httpPort > 65535)
-{
-    throw new InvalidOperationException($"Invalid HttpPort: {httpPort}. Must be between 1 and 65535.");
-}
-
-if (httpPort == httpsPort)
-{
-    throw new InvalidOperationException("HttpPort and HttpsPort must be different.");
-}
-
-bool useDevelopmentCertificate = string.IsNullOrWhiteSpace(certificatePath);
-
-if (!useDevelopmentCertificate && !File.Exists(certificatePath))
-{
-    throw new InvalidOperationException($"Certificate file not found: {certificatePath}");
-}
+// Load and validate configuration
+ServerConfiguration config = ServerConfiguration.LoadAndValidate(builder.Configuration);
 
 // Configure HTTPS redirection
 builder.Services.Configure<HttpsRedirectionOptions>(options =>
 {
-    options.HttpsPort = httpsPort;
+    options.HttpsPort = config.HttpsPort;
 });
 
 // Configure Kestrel
 builder.WebHost.ConfigureKestrel(options =>
 {
     // HTTPS endpoint
-    options.Listen(IPAddress.Parse(hostname), httpsPort, listenOptions =>
+    options.Listen(IPAddress.Parse(config.Hostname), config.HttpsPort, listenOptions =>
     {
-        if (useDevelopmentCertificate)
+        if (config.UseDevelopmentCertificate)
         {
             listenOptions.UseHttps();
         }
         else
         {
-            listenOptions.UseHttps(certificatePath, certificatePassword);
+            listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
         }
     });
 
     // HTTP endpoint (for redirect)
-    options.Listen(IPAddress.Parse(hostname), httpPort);
+    options.Listen(IPAddress.Parse(config.Hostname), config.HttpPort);
 });
 
 WebApplication app = builder.Build();
