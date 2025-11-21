@@ -36,18 +36,9 @@ if (config is null)
     return 1;
 }
 
-try
+if (config.HttpPort == config.HttpsPort)
 {
-    config.Validate();
-}
-catch (ArgumentException ex)
-{
-    Console.Error.WriteLine($"Configuration error: {ex.Message}");
-    return 1;
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine($"Unexpected error validating configuration: {ex.Message}");
+    Console.Error.WriteLine($"Configuration error: HttpPort and HttpsPort must be different. Both are set to {config.HttpPort}.");
     return 1;
 }
 
