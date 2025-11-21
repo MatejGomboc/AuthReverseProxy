@@ -31,7 +31,7 @@ public sealed class ApplicationConfiguration
 
         hostname = hostname.Trim();
 
-        if (string.IsNullOrEmpty(hostname))
+        if (hostname.Length == 0)
         {
             throw new ArgumentException($"{nameof(Hostname)} cannot be empty.", nameof(Hostname));
         }
@@ -82,7 +82,7 @@ public sealed class ApplicationConfiguration
 
         certificatePath = certificatePath.Trim();
 
-        if (string.IsNullOrEmpty(certificatePath))
+        if (certificatePath.Length == 0)
         {
             throw new ArgumentException($"{nameof(CertificatePath)} cannot be empty.", nameof(CertificatePath));
         }
@@ -98,7 +98,7 @@ public sealed class ApplicationConfiguration
 
         certificatePassword = certificatePassword.Trim();
 
-        if (string.IsNullOrEmpty(certificatePassword))
+        if (certificatePassword.Length == 0)
         {
             throw new ArgumentException($"{nameof(CertificatePassword)} cannot be empty.", nameof(CertificatePassword));
         }
