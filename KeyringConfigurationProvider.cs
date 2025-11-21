@@ -61,31 +61,34 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     /// <returns>The retrieved secret, or null if not found or on error.</returns>
     private static string? FetchSecretFromKeyring(string service, string account)
     {
-        // Get GLib's free function pointer for proper cleanup
-        IntPtr gFreeFunc = g_free_ptr();
-
-        // Create GHashTable for attributes with g_free as destroyer
+        // Create GHashTable for attributes - we'll manage memory manually
         IntPtr attributes = g_hash_table_new_full(
             g_str_hash(),
             g_str_equal(),
-            gFreeFunc,  // key_destroy_func - will call g_free on keys
-            gFreeFunc); // value_destroy_func - will call g_free on values
+            IntPtr.Zero,  // key_destroy_func - NULL, we'll free manually
+            IntPtr.Zero); // value_destroy_func - NULL, we'll free manually
 
         if (attributes == IntPtr.Zero)
         {
             throw new InvalidOperationException("Failed to create GHashTable for attributes.");
         }
 
+        // Track allocated strings for cleanup
+        IntPtr serviceKey = IntPtr.Zero;
+        IntPtr serviceValue = IntPtr.Zero;
+        IntPtr accountKey = IntPtr.Zero;
+        IntPtr accountValue = IntPtr.Zero;
+
         try
         {
-            // Add service attribute
-            IntPtr serviceKey = MarshalUtf8String("service");
-            IntPtr serviceValue = MarshalUtf8String(service);
+            // Add service attribute using g_strdup
+            serviceKey = g_strdup("service");
+            serviceValue = g_strdup(service);
             g_hash_table_insert(attributes, serviceKey, serviceValue);
 
-            // Add account attribute
-            IntPtr accountKey = MarshalUtf8String("account");
-            IntPtr accountValue = MarshalUtf8String(account);
+            // Add account attribute using g_strdup
+            accountKey = g_strdup("account");
+            accountValue = g_strdup(account);
             g_hash_table_insert(attributes, accountKey, accountValue);
 
             IntPtr error = IntPtr.Zero;
@@ -124,20 +127,15 @@ public class KeyringConfigurationProvider : ConfigurationProvider
         }
         finally
         {
-            // Clean up the hash table (will automatically free all keys and values via g_free)
+            // Clean up the hash table first (removes references to our strings)
             g_hash_table_destroy(attributes);
-        }
-    }
 
-    /// <summary>
-    /// Marshal a .NET string to UTF-8 native string using GLib's allocator.
-    /// </summary>
-    private static IntPtr MarshalUtf8String(string str)
-    {
-        byte[] utf8Bytes = Encoding.UTF8.GetBytes(str + "\0"); // null-terminated
-        IntPtr ptr = g_malloc(utf8Bytes.Length);
-        Marshal.Copy(utf8Bytes, 0, ptr, utf8Bytes.Length);
-        return ptr;
+            // Now manually free the strings we allocated with g_strdup
+            if (serviceKey != IntPtr.Zero) g_free(serviceKey);
+            if (serviceValue != IntPtr.Zero) g_free(serviceValue);
+            if (accountKey != IntPtr.Zero) g_free(accountKey);
+            if (accountValue != IntPtr.Zero) g_free(accountValue);
+        }
     }
 
     /// <summary>
@@ -214,16 +212,16 @@ public class KeyringConfigurationProvider : ConfigurationProvider
     private static extern IntPtr g_str_equal();
 
     /// <summary>
-    /// GLib memory allocator.
+    /// Duplicate a string using GLib allocator.
     /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
-    private static extern IntPtr g_malloc(int size);
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private static extern IntPtr g_strdup([MarshalAs(UnmanagedType.LPUTF8Str)] string str);
 
     /// <summary>
-    /// GLib free function pointer (for use as destroy function).
+    /// Free memory allocated by GLib.
     /// </summary>
-    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl, EntryPoint = "g_free")]
-    private static extern IntPtr g_free_ptr();
+    [DllImport(LibGLib, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void g_free(IntPtr mem);
 
     #endregion
 }
