@@ -12,10 +12,10 @@ builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: true);
 
 // Set environment based on compile-time constant
-#if PRODUCTION
-builder.Environment.EnvironmentName = Environments.Production;
-#else
+#if DEVELOPMENT
 builder.Environment.EnvironmentName = Environments.Development;
+#else
+builder.Environment.EnvironmentName = Environments.Production;
 #endif
 
 // Configure Kestrel with HTTPS only
