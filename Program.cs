@@ -12,16 +12,15 @@ builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: true);
 
 // Set environment based on compile-time constant
-#if DEVELOPMENT
-builder.Environment.EnvironmentName = Environments.Development;
-#else
+#if PRODUCTION
 builder.Environment.EnvironmentName = Environments.Production;
+#else
+builder.Environment.EnvironmentName = Environments.Development;
 #endif
 
-// Configure Kestrel with HTTPS as default
+// Configure Kestrel with HTTPS only
 string hostname = builder.Configuration["Hostname"] ?? "localhost";
 int httpsPort = builder.Configuration.GetValue<int>("HttpsPort", 7000);
-int httpPort = builder.Configuration.GetValue<int>("HttpPort", 7001);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -29,13 +28,9 @@ builder.WebHost.ConfigureKestrel(options =>
     {
         listenOptions.UseHttps();
     });
-    options.ListenAnyIP(httpPort);
 });
 
 WebApplication app = builder.Build();
-
-// Redirect HTTP to HTTPS
-app.UseHttpsRedirection();
 
 app.MapGet("/", () => "Hello World!");
 
