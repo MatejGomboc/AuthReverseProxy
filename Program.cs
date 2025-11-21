@@ -30,7 +30,7 @@ builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
 // Load and validate configuration
-ServerConfiguration config = ServerConfiguration.LoadAndValidate(builder.Configuration);
+ApplicationConfiguration config = ApplicationConfiguration.LoadAndValidate(builder.Configuration);
 
 // Configure HTTPS redirection
 builder.Services.Configure<HttpsRedirectionOptions>(options =>
