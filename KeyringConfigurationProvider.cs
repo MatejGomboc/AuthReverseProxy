@@ -216,16 +216,16 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
         {
             // Destroy hash table - this will automatically free all keys and values
             // because we passed g_free as the destroy functions
-            // Note: Null check is needed in case an exception occurs during hash table population
             if (attributes != IntPtr.Zero)
             {
                 try 
                 { 
                     g_hash_table_destroy(attributes); 
                 }
-                catch 
+                catch (Exception cleanupEx)
                 { 
-                    // Suppress cleanup exceptions to avoid masking primary exception
+                    // Log cleanup exceptions to aid debugging, but don't mask primary exception
+                    Console.Error.WriteLine($"Warning: Exception during hash table cleanup: {cleanupEx.Message}");
                 }
             }
         }
