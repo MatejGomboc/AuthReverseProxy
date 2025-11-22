@@ -21,6 +21,14 @@ builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: false);
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
+// Add keyring configuration provider for sensitive credentials
+builder.Configuration.Add(new KeyringConfigurationSource
+{
+    Service = "AuthReverseProxy",
+    Account = "HttpsCertificate",
+    ConfigKey = "HttpsCertificatePassword"
+});
+
 ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
 
 if (config is null)
@@ -54,7 +62,7 @@ builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
     options.Listen(config.Hostname, config.HttpsPort, (ListenOptions listenOptions) =>
     {
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(config.CertificatePath, config.CertificatePassword);
+        listenOptions.UseHttps(config.HttpsCertificatePath, config.HttpsCertificatePassword);
     });
 
     // HTTP listener (for redirects only)

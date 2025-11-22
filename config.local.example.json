@@ -2,6 +2,5 @@
     "Hostname": "localhost",
     "HttpsPort": 7000,
     "HttpPort": 7001,
-    "CertificatePath": "",
-    "CertificatePassword": ""
+    "HttpsCertificatePath": ""
 }

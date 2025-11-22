@@ -1,10 +1,10 @@
 namespace AuthReverseProxy;
 
-public sealed class ApplicationConfiguration
+public sealed record ApplicationConfiguration
 {
-    public System.Net.IPAddress Hostname { get; set; } = System.Net.IPAddress.Loopback;
-    public ushort HttpsPort { get; set; }
-    public ushort HttpPort { get; set; }
-    public string CertificatePath { get; set; } = string.Empty;
-    public string CertificatePassword { get; set; } = string.Empty;
+    public required System.Net.IPAddress Hostname { get; init; }
+    public required ushort HttpsPort { get; init; }
+    public required ushort HttpPort { get; init; }
+    public required string HttpsCertificatePath { get; init; }
+    public required string HttpsCertificatePassword { get; init; }
 }
