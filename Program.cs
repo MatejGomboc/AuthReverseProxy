@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -28,21 +29,17 @@ builder.Configuration.Sources.Add(new KeyringConfigurationSource
     ConfigKey = nameof(ApplicationConfiguration.HttpsCertificatePassword)
 });
 
-ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
+// Configure options with automatic validation
+builder.Services.AddOptions<ApplicationConfiguration>()
+    .Bind(builder.Configuration)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
-if (config is null)
-{
-    Console.Error.WriteLine("Configuration error: Config is null.");
-    return 1;
-}
+// Build a temporary service provider to get and validate configuration early
+using ServiceProvider tempServiceProvider = builder.Services.BuildServiceProvider();
+ApplicationConfiguration config = tempServiceProvider.GetRequiredService<IOptions<ApplicationConfiguration>>().Value;
 
-if (config.HttpPort == config.HttpsPort)
-{
-    Console.Error.WriteLine("Configuration error: HTTP port and HTTPS port have the same value.");
-    return 1;
-}
-
-builder.Services.Configure((HttpsRedirectionOptions options) =>
+builder.Services.Configure<HttpsRedirectionOptions>((HttpsRedirectionOptions options) =>
 {
     options.HttpsPort = config.HttpsPort;
     options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
@@ -55,6 +52,7 @@ builder.Services.AddHsts((HstsOptions options) =>
     options.Preload = false; // Each domain should opt-in individually.
 });
 
+// Configure Kestrel with validated configuration
 builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
 {
     // HTTPS listener
