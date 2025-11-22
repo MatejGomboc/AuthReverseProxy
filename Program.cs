@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
-    ApplicationName = "AuthReverseProxy",
+    ApplicationName = nameof(AuthReverseProxy),
     Args = [],
     ContentRootPath = AppContext.BaseDirectory,
     WebRootPath = "",
@@ -23,9 +23,9 @@ builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnC
 
 builder.Configuration.Sources.Add(new KeyringConfigurationSource
 {
-    Service = "AuthReverseProxy",
+    Service = nameof(AuthReverseProxy),
     Account = "HttpsCertificate",
-    ConfigKey = "HttpsCertificatePassword"
+    ConfigKey = nameof(ApplicationConfiguration.HttpsCertificatePassword)
 });
 
 ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
