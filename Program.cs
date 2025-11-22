@@ -1,7 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using AuthReverseProxy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -31,18 +28,7 @@ builder.Configuration.Sources.Add(new KeyringConfigurationSource
     ConfigKey = nameof(ApplicationConfiguration.HttpsCertificatePassword)
 });
 
-// Get and validate configuration early
-ApplicationConfiguration config = builder.Configuration.Get<ApplicationConfiguration>()
-    ?? throw new InvalidOperationException("Configuration is null.");
-
-// Manually validate the configuration using the validation attributes and IValidatableObject
-List<ValidationResult> validationResults = new();
-ValidationContext validationContext = new(config);
-if (!Validator.TryValidateObject(config, validationContext, validationResults, validateAllProperties: true))
-{
-    string errors = string.Join(Environment.NewLine, validationResults.Select(r => r.ErrorMessage));
-    throw new InvalidOperationException($"Configuration validation failed:{Environment.NewLine}{errors}");
-}
+ApplicationConfiguration config = builder.Configuration.GetValidated<ApplicationConfiguration>();
 
 builder.Services.Configure<HttpsRedirectionOptions>((HttpsRedirectionOptions options) =>
 {
