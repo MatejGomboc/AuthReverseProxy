@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using AuthReverseProxy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -7,7 +10,6 @@ using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -29,15 +31,18 @@ builder.Configuration.Sources.Add(new KeyringConfigurationSource
     ConfigKey = nameof(ApplicationConfiguration.HttpsCertificatePassword)
 });
 
-// Configure options with automatic validation
-builder.Services.AddOptions<ApplicationConfiguration>()
-    .Bind(builder.Configuration)
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
+// Get and validate configuration early
+ApplicationConfiguration config = builder.Configuration.Get<ApplicationConfiguration>()
+    ?? throw new InvalidOperationException("Configuration is null.");
 
-// Build a temporary service provider to get and validate configuration early
-using ServiceProvider tempServiceProvider = builder.Services.BuildServiceProvider();
-ApplicationConfiguration config = tempServiceProvider.GetRequiredService<IOptions<ApplicationConfiguration>>().Value;
+// Manually validate the configuration using the validation attributes and IValidatableObject
+List<ValidationResult> validationResults = new();
+ValidationContext validationContext = new(config);
+if (!Validator.TryValidateObject(config, validationContext, validationResults, validateAllProperties: true))
+{
+    string errors = string.Join(Environment.NewLine, validationResults.Select(r => r.ErrorMessage));
+    throw new InvalidOperationException($"Configuration validation failed:{Environment.NewLine}{errors}");
+}
 
 builder.Services.Configure<HttpsRedirectionOptions>((HttpsRedirectionOptions options) =>
 {
@@ -52,7 +57,6 @@ builder.Services.AddHsts((HstsOptions options) =>
     options.Preload = false; // Each domain should opt-in individually.
 });
 
-// Configure Kestrel with validated configuration
 builder.WebHost.ConfigureKestrel((KestrelServerOptions options) =>
 {
     // HTTPS listener
