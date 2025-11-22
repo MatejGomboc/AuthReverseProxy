@@ -21,8 +21,7 @@ builder.Configuration.Sources.Clear();
 builder.Configuration.AddJsonFile("config.json", optional: false, reloadOnChange: false);
 builder.Configuration.AddJsonFile("config.local.json", optional: true, reloadOnChange: false);
 
-// Add keyring configuration provider for sensitive credentials
-builder.Configuration.Add(new KeyringConfigurationSource
+builder.Configuration.Sources.Add(new KeyringConfigurationSource
 {
     Service = "AuthReverseProxy",
     Account = "HttpsCertificate",
@@ -43,7 +42,7 @@ if (config.HttpPort == config.HttpsPort)
     return 1;
 }
 
-builder.Services.Configure<HttpsRedirectionOptions>((HttpsRedirectionOptions options) =>
+builder.Services.Configure((HttpsRedirectionOptions options) =>
 {
     options.HttpsPort = config.HttpsPort;
     options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
