@@ -38,14 +38,14 @@ RUN apt-get update && \
     dpkg -i /tmp/downloads/packages-microsoft-prod.deb && \
     apt-get update && \
     apt-get install -y --no-install-recommends dotnet-sdk-10.0 && \
+    # Verify installations and update Claude Code
+    task --version && \
+    dotnet --info && \
+    claude update && \
     # Cleanup
     rm -rf /tmp/downloads/* && \
     apt-get autoremove -y && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    # Verify installations and update Claude Code
-    task --version && \
-    dotnet --info && \
-    claude update
+    rm -rf /var/lib/apt/lists/*
 
 CMD ["/bin/bash"]
