@@ -16,13 +16,13 @@ public sealed record ApplicationConfiguration : IValidatableObject
     /// <summary>
     /// Gets the HTTPS port number (must be different from HTTP port).
     /// </summary>
-    [Range(1, 65535, ErrorMessage = "HTTPS port must be between 1 and 65535.")]
+    [Range(1, ushort.MaxValue, ErrorMessage = "HTTPS port must be between 1 and 65535.")]
     public required ushort HttpsPort { get; init; }
 
     /// <summary>
     /// Gets the HTTP port number (must be different from HTTPS port).
     /// </summary>
-    [Range(1, 65535, ErrorMessage = "HTTP port must be between 1 and 65535.")]
+    [Range(1, ushort.MaxValue, ErrorMessage = "HTTP port must be between 1 and 65535.")]
     public required ushort HttpPort { get; init; }
 
     /// <summary>
