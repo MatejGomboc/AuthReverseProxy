@@ -115,6 +115,14 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     /// <param name="service">The service name.</param>
     /// <param name="account">The account name.</param>
     /// <returns>The retrieved secret, or null if not found.</returns>
+    /// <remarks>
+    /// This method uses a synchronous blocking call to the keyring daemon.
+    /// The call will block until the keyring daemon responds, which is typically
+    /// very fast (microseconds to low milliseconds) if the keyring is unlocked.
+    /// If the keyring is locked, the system may prompt for the keyring password,
+    /// which requires user interaction. In automated scenarios, ensure the keyring
+    /// is unlocked before application startup.
+    /// </remarks>
     private static string? FetchSecretFromKeyring(string service, string account)
     {
         // Create GHashTable for attributes with g_free as destroy functions
@@ -163,10 +171,13 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
             g_hash_table_insert(attributes, accountKey, accountValue);
 
             // Lookup password using the attribute hash table
+            // Note: This is a synchronous blocking call. It will wait for the keyring
+            // daemon to respond. Cancellable is set to NULL (IntPtr.Zero), meaning
+            // this operation cannot be cancelled once started.
             IntPtr passwordPtr = secret_password_lookupv_sync(
                 IntPtr.Zero,     // schema (NULL = generic schema)
                 attributes,      // attribute hash table
-                IntPtr.Zero,     // cancellable (NULL = no cancellation)
+                IntPtr.Zero,     // cancellable (NULL = no cancellation support)
                 out IntPtr error); // error output
 
             // Check for errors first - per libsecret docs, if error is set, passwordPtr should be NULL
@@ -263,6 +274,7 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
 
     /// <summary>
     /// Lookup a password using attributes hash table.
+    /// This is a synchronous blocking call that waits for the keyring daemon to respond.
     /// </summary>
     [DllImport(LibSecret, CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr secret_password_lookupv_sync(
