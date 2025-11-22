@@ -16,6 +16,9 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     private readonly string _account;
     private readonly string _configKey;
 
+    // Keep library handle to prevent premature unloading by GC
+    private static readonly IntPtr _libGLibHandle;
+    
     // Cache native function pointers (NOT managed delegates) as static fields
     // These are loaded once and reused, avoiding overhead on every call
     private static readonly IntPtr _gStrHashFuncPtr;
@@ -29,12 +32,12 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
     {
         try
         {
-            // Load GLib library and get direct function pointers
-            IntPtr libGLib = NativeLibrary.Load(LibGLib);
+            // Load GLib library and retain handle to prevent premature unloading
+            _libGLibHandle = NativeLibrary.Load(LibGLib);
             
-            _gStrHashFuncPtr = NativeLibrary.GetExport(libGLib, "g_str_hash");
-            _gStrEqualFuncPtr = NativeLibrary.GetExport(libGLib, "g_str_equal");
-            _gFreeFuncPtr = NativeLibrary.GetExport(libGLib, "g_free");
+            _gStrHashFuncPtr = NativeLibrary.GetExport(_libGLibHandle, "g_str_hash");
+            _gStrEqualFuncPtr = NativeLibrary.GetExport(_libGLibHandle, "g_str_equal");
+            _gFreeFuncPtr = NativeLibrary.GetExport(_libGLibHandle, "g_free");
 
             if (_gStrHashFuncPtr == IntPtr.Zero || _gStrEqualFuncPtr == IntPtr.Zero || _gFreeFuncPtr == IntPtr.Zero)
             {
@@ -166,7 +169,7 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
                 IntPtr.Zero,     // cancellable (NULL = no cancellation)
                 out IntPtr error); // error output
 
-            // Check for errors
+            // Check for errors first - per libsecret docs, if error is set, passwordPtr should be NULL
             if (error != IntPtr.Zero)
             {
                 string? errorMessage = GetGErrorMessage(error);
@@ -202,6 +205,7 @@ public sealed class KeyringConfigurationProvider : ConfigurationProvider
         {
             // Destroy hash table - this will automatically free all keys and values
             // because we passed g_free as the destroy functions
+            // Note: Null check is needed in case an exception occurs during hash table population
             if (attributes != IntPtr.Zero)
             {
                 try 
