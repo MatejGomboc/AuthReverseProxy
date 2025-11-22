@@ -16,13 +16,13 @@ public sealed record ApplicationConfiguration : IValidatableObject
     /// <summary>
     /// Gets the HTTPS port number (must be different from HTTP port).
     /// </summary>
-    [Range(1, ushort.MaxValue, ErrorMessage = "HTTPS port must be between 1 and 65535.")]
+    [Range(1, ushort.MaxValue, ErrorMessage = "HTTPS port must be between 1 and {2}.")]
     public required ushort HttpsPort { get; init; }
 
     /// <summary>
     /// Gets the HTTP port number (must be different from HTTPS port).
     /// </summary>
-    [Range(1, ushort.MaxValue, ErrorMessage = "HTTP port must be between 1 and 65535.")]
+    [Range(1, ushort.MaxValue, ErrorMessage = "HTTP port must be between 1 and {2}.")]
     public required ushort HttpPort { get; init; }
 
     /// <summary>
@@ -48,16 +48,8 @@ public sealed record ApplicationConfiguration : IValidatableObject
         if (HttpPort == HttpsPort)
         {
             yield return new ValidationResult(
-                $"HTTP port and HTTPS port must be different. Both are set to {HttpPort}.",
+                "HTTP port and HTTPS port must be different.",
                 new[] { nameof(HttpPort), nameof(HttpsPort) });
-        }
-
-        // Additional validation for certificate path (redundant with [MinLength] but more specific)
-        if (string.IsNullOrWhiteSpace(HttpsCertificatePath))
-        {
-            yield return new ValidationResult(
-                "HTTPS certificate path cannot be empty or whitespace.",
-                new[] { nameof(HttpsCertificatePath) });
         }
     }
 }
