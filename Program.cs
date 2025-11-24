@@ -28,21 +28,9 @@ builder.Configuration.Sources.Add(new KeyringConfigurationSource
     ConfigKey = nameof(ApplicationConfiguration.HttpsCertificatePassword)
 });
 
-ApplicationConfiguration? config = builder.Configuration.Get<ApplicationConfiguration>();
+ApplicationConfiguration config = builder.Configuration.GetValidated<ApplicationConfiguration>();
 
-if (config is null)
-{
-    Console.Error.WriteLine("Configuration error: Config is null.");
-    return 1;
-}
-
-if (config.HttpPort == config.HttpsPort)
-{
-    Console.Error.WriteLine("Configuration error: HTTP port and HTTPS port have the same value.");
-    return 1;
-}
-
-builder.Services.Configure((HttpsRedirectionOptions options) =>
+builder.Services.Configure<HttpsRedirectionOptions>((HttpsRedirectionOptions options) =>
 {
     options.HttpsPort = config.HttpsPort;
     options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
